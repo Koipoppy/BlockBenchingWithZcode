@@ -1,0 +1,32 @@
+# BlockBenchingWithZcode
+
+用 ZCode 从零编写 Minecraft 风格 Blockbench 模型的 skill 与实战记录。
+
+- **[skill/SKILL.md](skill/SKILL.md)** —— skill 正文：四条核心规则、流水线、踩坑速查表、验证门
+- `skill/references/bbmodel-format.md` —— 从 Blockbench 5.2.1 源码实测的格式表
+  （顶点序 / uv 角配对 / 旋转序 / 默认相机 / 格式 id / asar 提取方法）
+- `skill/references/pitfalls.md` —— 每个坑的完整 post-mortem（症状 → 定位 → 根因 → 修复）
+- `skill/scripts/` —— 可复现的生成与离线预览脚本
+- `skill/example/` —— 一次完整产出：霸王花盆栽（`.bbmodel` + 贴图 + 两张预览）
+
+## 快速开始
+
+```bash
+cd skill
+python scripts/build_bawanghua_pot.py      # 重新生成 example/ 里的模型和贴图
+python scripts/preview_bbmodel.py example/bawanghua_flower_pot.bbmodel preview.png \
+       --azimuth 225 --elevation 19.47 --distance 60 --target 0 12 0
+```
+
+用 Blockbench 打开 `skill/example/bawanghua_flower_pot.bbmodel` 即可查看/编辑模型。
+
+## 这套 skill 解决的核心问题
+
+1. **格式事实以 Blockbench 源码为准**：显式 UV 是"从外看正立不镜像"（不是 box-net 的南北翻 u），
+   旋转是 `Rz·Ry·Rx` 绕 origin，`free` 格式才允许骨骼组 + 任意角度——搞错任何一条，贴图静默镜像或错位
+2. **以像素为单位思考**：小于 1/16 格的特征是亚像素
+3. **轮廓靠阶梯方块**：大长方体读作箱子，1 格收分读作生物
+4. **没看过的渲染等于没渲染**：Blockbench 没有无头 CLI，用结构校验 + 品红占位门 + 自写光栅器三道门闭环
+
+版本基于 Blockbench 5.2.1（Windows 安装版）。换版本时，skill 里的实证方法
+（uvprobe 探针 + source map 提取）可以重新核对一遍。

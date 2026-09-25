@@ -31,6 +31,7 @@
 ```
 property/
 ├─ README.md            本文件：总索引
+├─ skill/               skill 工作版（随建模一起积累更新，见下）
 ├─ tools/               共享脚本：各模型的一键生成 + 离线渲染器 + Bedrock 导出
 └─ <模型名>/
    ├─ <模型名>.bbmodel  Blockbench 工程（贴图 base64 内嵌，双击即看）
@@ -40,3 +41,16 @@ property/
 ```
 
 生成脚本（`tools/build_*.py`）的输出目录已指向各自模型文件夹，在 property 里重新生成不会散落到根目录。
+
+## skill（工作版，随建模持续积累）
+
+`skill/` 是这份分支随模型一起维护的 **skill 工作版**：格式实测表、踩坑记录、生成与渲染脚本都在里面。
+
+- 每次建模——新做模型、发现新的格式事实、踩到新的坑、改进渲染器——都应当把经验**回写到这里**：
+  规则进 `skill/SKILL.md`，细节表进 `skill/references/bbmodel-format.md`，
+  坑的完整定位过程进 `skill/references/pitfalls.md`；
+- 同时在对应模型的 `README.md` 里记一句"这次新增/改了什么"；
+- 仓库根目录的那份 skill（与 main 分支一致）是**发布版**，只沉淀已验证成熟的结论：
+  工作版里试出来的东西先在模型上验证，再决定何时往发布版同步。
+
+维护细则写在 `skill/README.md` 的「版本关系与维护约定」里。

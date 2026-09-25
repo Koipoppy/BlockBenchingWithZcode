@@ -1,0 +1,18 @@
+# 只发布我们自己的产出（模型 / 贴图 / 预览 / 生成脚本 / skill）。
+# 下面这些是参考素材与调试中间产物，不随分支发布——尤其第三方模型包，公开前应先确认授权。
+
+# 第三方参考素材（模型包、角色参考图等）
+property/参考/
+property/_ref/
+
+# 调试与对比中间产物（可能包含参考图内容）
+property/_cmp/
+
+# 临时/试验输出
+property/out/
+property/.mcp-scratch/
+property/_probe/
+
+# Python 缓存
+__pycache__/
+*.pyc

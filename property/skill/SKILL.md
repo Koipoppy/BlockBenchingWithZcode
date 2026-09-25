@@ -59,13 +59,17 @@ bundle 本体是 vite 压缩过的，直接 grep 没用；要读 `resources/app.
 
 **4. 没亲眼看过的渲染等于没渲染。**
 
-Blockbench 没有无头 CLI（不能脚本开工程截图），验证只能自己搭三道门：
+Blockbench 应用本身没有无头 CLI（不能脚本开工程截图），所以验证分两层：**自建三道门**
+（零依赖、永远可用）加 **第三方对照**（[headless MCP](references/headless-mcp.md)——用 Blockbench
+自己的编解码器和另一套渲染器复核，是我们没有 GUI 时能拿到的最接近"真值"的东西）：
 
 | 门 | 工具 | 通过标准 |
 |---|---|---|
 | 结构 | `validate_bbmodel.py`（minecraft-animation skill 自带，路径见下） | 全部不变量通过 |
+| 结构（第三方） | headless MCP `bbmodel_validate` | errors = 0；warning 每一条都能解释（有意的跨组穿插、刻意独立的件要说得出来） |
 | UV | 生成脚本内置（每个面采到的矩形必须已绘制）+ 一张**方向性贴图**自检方向 | 0 个未绘制矩形被采样；脸/字母测试贴图正立、不镜像 |
 | 视觉 | `scripts/preview_bbmodel.py` | 默认视角 + 正面两张都逐张看过；画面里品红像素 = 0 |
+| 视觉（第三方） | headless MCP `bbmodel_render` / `bbmodel_contact_sheet` | 与自建渲染器**同视角**对比：几何与朝向必须一致（灯光/背景可以不同） |
 
 品红是故意的：贴图未绘制区域涂 `(255,0,255)`，任何一个 UV 指错都会在渲染里以品红出现，
 一眼可辨。构建期的 UV 门和渲染期的品红扫描是**两条独立的检查**，别用一条替代另一条。
@@ -94,7 +98,12 @@ Blockbench 没有无头 CLI（不能脚本开工程截图），验证只能自�
 | 9 | `/tmp/x.png` 写入报 FileNotFoundError | Git Bash 的 `/tmp` 映射对原生 Windows Python 不成立 | 用 `os.environ['TEMP']` 或显式 `C:/` 路径 |
 | 11 | 预览里每个面的贴图上下颠倒+左右镜像，噪点贴图却看不出来 | 逐面 UV 角的三元写反：`u1 if cx else u2` 与 `u2 if cx else u1` 是两个相反方向 | 顶点 v0 必须拿矩形左上角 `(u1,v1)`；**用方向性贴图自检**（皮肤布局的脸、字母、箭头），别用噪点贴图验证 UV 方向 |
 | 12 | Blockbench 打开保存过的工程，组的旋转"失效" | 5.0 格式把组的 origin/rotation 搬到顶层 `groups` 表，outliner 只剩 uuid 引用 | 解析器两边都读：节点里没有就按 uuid 查组表；仓库里已有一个 5.0 工程（瓶中帆船） |
-| 10 | 想查参考图，全网不可达 | fandom 404/超时、百度百科 403、必应跳转无结果 | 按名称 + 题材美术惯例设计，并在交付说明里**显式声明这是假设**；或让用户贴参考图 |
+| 13 | 镜像的件一边贴合一边悬空（"同款造型，就它飘着"） | 镜像函数把**轴心整个取负**：`-v for v in origin` 会把 (11, 35.5) 镜成 (−11, −35.5)，跨 x=0 镜像只该翻 x | 轴心只翻 x：`(-ox, oy, oz)`；再断言对称不变量（每对左右件的世界 AABB：x 之和为 0、y/z 相等）。详见 pitfalls #13 |
+| 14 | 旋转的斜板整车乱飞（首上板翘上天空、颊板立到车尾），左侧镜像件被 validator 抓负 extent | 元素的 from/to 是**未旋转姿态**的绝对坐标，和 origin 必须同一处——把"目标区域"当坐标、把几十格外的铰链当轴心，旋转就甩飞；镜像盒子 x 取负后 from>to | 先把板**未旋转**地挂在铰链上（板长=弦长），origin 在铰链，角度由端点落点反解（`θ = atan2(−Δz, −Δy)`）；镜像用 `xbox()` 交换 from/to 两端。详见 bbmodel-format.md §3 与 pitfalls #14 |
+| 10 | 想查参考图，直连页面不可达 | WebSearch 摘要可用（M1A2 一次检索就拿到了炮塔布局/轮数/产量等史实），但 WebFetch 直连 wikipedia/fandom/百科全部超时，**拿不到图** | 文字资料用 WebSearch 摘要；美术细节仍按名称 + 题材惯例设计并**显式声明是假设**，或让用户贴参考图 |
+| 15 | `npm i github:用户/仓库` 报 `git@github.com: Permission denied (publickey)` | npm 把 `github:` 规格解析成 **SSH** 地址（`git@github.com:...`），本机没有 GitHub SSH key | 改用 HTTPS tarball：`npm i https://github.com/用户/仓库/archive/refs/heads/main.tar.gz`。另外**包名可能与仓库名不同**（仓库 `blockbench-mcp-plugin` → 包 `blockbench-mcp`），别按仓库名找 `node_modules/` 下的目录 |
+| 16 | 无头工具改完的模型在 Blockbench 里"看不到变化"；或写入被拒 | 应用**不重载**磁盘上变化的文件；写入会被打 `ai_used`/`ai_agents` 标记；路径必须落在某个 `--root` 内 | 改完在 GUI 里重新打开，别两边同时改同一文件；`--no-ai-disclosure` 关标记；把产物目录也加成 `--root`（否则只能写进模型目录） |
+| 17 | 手写的 Bedrock 导出比 Blockbench 少一层骨架 | 导出器没有为模型本身发一根 **root 骨骼** | 与 headless MCP 的 `bbmodel_export_bedrock_geometry` 对照：11/11 方块的几何+UV 完全一致，对方多一根以模型名命名的 root bone（9 vs 8）；补上即可，详见 [references/headless-mcp.md](references/headless-mcp.md) |
 
 详细的定位过程（包括怎么一步步锁定坑 1 那个 bug 的）在
 [references/pitfalls.md](references/pitfalls.md)。
@@ -108,6 +117,9 @@ Blockbench 没有无头 CLI（不能脚本开工程截图），验证只能自�
 3. **数像素**：对缺失区域取一个像素，遍历所有三角形算重心坐标，看谁覆盖它、谁的 depth 最小——覆盖它的四边形列表会直接说出真相（坑 1 就是这么定位的：覆盖该像素的只有一个四边形，就是那个"消失"的面本身）
 4. **看贴图**：把 atlas 放大 8 倍逐 rect 检查，确认画的是你以为是的东西
 5. **对照 Blockbench 源码**：涉及 UV / 顶点序 / 旋转 / 相机的一切，以 `app.asar` 的 source map 为准，不以记忆为准
+6. **对照第三方实现**：`bbmodel_validate`（结构、对称、悬空）+ `bbmodel_render`（同视角比几何与朝向）。
+   两个渲染器不一致时，先怀疑自建的那个——它没经过 Blockbench 编解码器的校验；
+   对方是独立实现且直接跑 Blockbench 的导出规则，是"我看到的"和"Blockbench 会渲染成什么"之间最近的一环
 
 ## 环境
 
@@ -117,3 +129,8 @@ Blockbench 没有无头 CLI（不能脚本开工程截图），验证只能自�
   如果它不在了，references/bbmodel-format.md 列出了它检查的全部不变量，可以照着重写
 - 渲染器 `scripts/preview_bbmodel.py` 是通用工具，任何 `.bbmodel` 都能渲染：
   `python scripts/preview_bbmodel.py 模型.bbmodel 输出.png --azimuth 225 --elevation 19.47 --distance 60 --target 0 12 0`
+- **无头 MCP（第三方校验 / 渲染 / 导出 / 编辑）**：装在 `C:\Users\chenyuchong\MyApp\blockbench\.mcp`，
+  由工作区配置 `blockbench/.zcode/config.json` 的 `mcp.servers.blockbench-headless` 接入 ZCode
+  （会话启动时加载，所以原生工具下一次会话才出现）。当下就能用：
+  `cd blockbench/.mcp && python call_tool.py bbmodel_validate '{"file": "cottage/cottage.bbmodel"}'`。
+  工具清单、安装坑、与自建工具的对照结论见 [references/headless-mcp.md](references/headless-mcp.md)

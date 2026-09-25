@@ -235,18 +235,23 @@ def _raster(color, depth, points, uvs, texture, shade, write_depth=True):
 
 
 def render(doc, textures, size=720, eye=(-40.0, 32.0, -40.0), target=(0.0, 12.0, 0.0),
-           fov=45.0, ssaa=2, ground=-0.02, ground_half=4.6) -> Image.Image:
+           fov=45.0, ssaa=2, ground=-0.02, ground_half=4.6, bg=None,
+           unlit=False) -> Image.Image:
     quads = collect_quads(doc)
     w = h = size * ssaa
     eye = np.array(eye, dtype=float)
     view = view_matrix(eye, target)
     focal = 0.5 * h / math.tan(math.radians(fov) / 2.0)
 
-    # background: a soft vertical gradient so the silhouette reads
-    top = np.array([236, 239, 243], np.float32) / 255.0
-    bottom = np.array([203, 210, 219], np.float32) / 255.0
-    ramp = np.linspace(0.0, 1.0, h, dtype=np.float32)[:, None, None]
-    color = (top * (1 - ramp) + bottom * ramp) * np.ones((h, w, 1), np.float32)
+    if bg is not None:
+        # flat background: lets a comparison tool key the model out by colour
+        color = np.ones((h, w, 3), np.float32) * (np.array(bg, np.float32) / 255.0)
+    else:
+        # a soft vertical gradient so the silhouette reads
+        top = np.array([236, 239, 243], np.float32) / 255.0
+        bottom = np.array([203, 210, 219], np.float32) / 255.0
+        ramp = np.linspace(0.0, 1.0, h, dtype=np.float32)[:, None, None]
+        color = (top * (1 - ramp) + bottom * ramp) * np.ones((h, w, 1), np.float32)
 
     def project(points):
         view_pts = (view[:3, :3] @ points.T).T + view[:3, 3]
@@ -307,7 +312,7 @@ def render(doc, textures, size=720, eye=(-40.0, 32.0, -40.0), target=(0.0, 12.0,
             # comparing those against the world-space eye silently culls visible faces.
             if np.dot(quad["normal"], eye - quad["verts"].mean(axis=0)) <= 0:
                 continue
-            shade = face_shade(quad["normal"])
+            shade = 1.0 if unlit else face_shade(quad["normal"])
             tex = textures[min(quad["texture"], len(textures) - 1)]
             for tri in TRIANGLES:
                 pts = [screen[i] for i in tri]
@@ -333,19 +338,26 @@ def main() -> int:
     ap.add_argument("--fov", type=float, default=45.0)
     ap.add_argument("--ground", type=float, default=4.6,
                     help="half-size of the contact-shadow footprint on the ground")
+    ap.add_argument("--unlit", action="store_true",
+                    help="flat lighting: compare texture colours, not shading")
+    ap.add_argument("--bg", default=None,
+                    help="flat background as R,G,B (e.g. 255,0,255) instead of the "
+                         "gradient, so a mask can be keyed by colour; also drops the shadow")
     args = ap.parse_args()
 
     with open(args.model, encoding="utf-8") as fh:
         doc = json.load(fh)
     textures = decode_textures(doc)
 
+    bg = tuple(int(v) for v in args.bg.split(",")) if args.bg else None
     az, el = math.radians(args.azimuth), math.radians(args.elevation)
     target = np.array(args.target, dtype=float)
     eye = target + args.distance * np.array([math.cos(el) * math.sin(az),
                                              math.sin(el),
                                              math.cos(el) * math.cos(az)])
     img = render(doc, textures, size=args.size, eye=eye, target=target, fov=args.fov,
-                 ground_half=args.ground)
+                 ground=None if bg else args.ground, ground_half=args.ground, bg=bg,
+                 unlit=args.unlit)
     img.save(args.out)
     print(f"{args.out}  {img.width}x{img.height}  eye={np.round(eye, 1).tolist()}")
     return 0

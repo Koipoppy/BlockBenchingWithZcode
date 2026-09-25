@@ -71,6 +71,17 @@ three.js 的 'ZYX' 矩阵 = **Rz·Ry·Rx**，作用在向量上即先 X 后 Y �
 组带 `[0, θ, 0]`（pivot 在轴心），元素只带 `[0, 0, 倾角]`（pivot 在根部）。
 一个元素旋转写 `[0, θ, 倾角]` 会在 θ≠0 时把翘起变成侧滚。
 
+**`from`/`to` 是"未旋转姿态"下模型空间的绝对坐标，`origin` 是同一空间里的轴心点**；
+两者不在一处时（比如坐标写在中部、轴心写在几十格外），旋转会把方块甩到完全无关的位置。
+摆斜板的正确流程（M1A2 首上装甲验证）：
+
+1. 目标是"铰链 H → 端点 T"的一块板：先把板**未旋转**地挂在 H 上
+   （竖直悬挂，板长 = |H−T|，厚度居中于铰链平面），`origin` 设在 H；
+2. 旋转角由端点反解：Rx(θ) 作用下悬挂板的下端走 `(Δy, Δz) = (−L·cosθ, −L·sinθ)`，
+   要落到 T 就解 `θ = atan2(−Δz, −Δy)`（首上板 Δy=−20、Δz=−11.5 → θ=30°）；
+   绕竖轴的颊板同理：沿 +z 从枢轴摆出，`ry = atan2(Δx, Δz)`；
+3. 手算一个端点的落点核对（必须落在设计坐标上），再渲染侧视/正视确认。
+
 ## 4. 格式与默认值
 
 ```
@@ -166,3 +177,59 @@ asar 头部（小端 u32）：
 以上任何一条都可以（也应该）用探针实证：造一个立方体，六个面各涂一种纯色 +
 白色箭头指向矩形 -v 方向 + 角落放一个黑点，渲染六个方向，读图即可一次确定全部六面的
 方向映射。改 Blockbench 版本或换导出路径时重跑一次，两分钟。
+
+## 11. 工程格式版本：4.5（脚本写的）与 5.0（Blockbench 保存写的）
+
+实测对象：`property/ship_in_bottle/ship_in_bottle.bbmodel`——在 Blockbench 里打开并保存过一次。
+
+| | 4.5（本仓库生成脚本写出的） | 5.0（Blockbench 自己保存写出的） |
+|---|---|---|
+| `meta.format_version` | `"4.5"` | `"5.0"` |
+| 组的 name/origin/rotation | 内联在 outliner 节点里 | 移到顶层 `groups` 数组 |
+| outliner 节点 | `{name, origin, rotation, uuid, children}` | `{uuid, isOpen, children}`（纯引用） |
+| 元素额外字段 | 无 | `scope` / `autouv` / `export` / `locked` / `allow_mirror_modeling` / `render_order` … |
+| 数字写法 | `1.0` / `0.0` | 能取整就写整数（`0` 而非 `0.0`） |
+| 额外顶层键 | 无 | `groups` / `model_identifier` / `timeline_setups` / `visible_box` / `unhandled_root_fields` / `variable_placeholder*` / `multi_file_ruleset` |
+
+要点：
+
+- **解析器两边都要读**：outliner 节点里没有 `origin`/`rotation` 时，按 `uuid` 去顶层 `groups` 表取。
+  组的 `origin` 只是 pivot（**不**平移子元素），所以真正会丢的是**组的旋转**——没有旋转组时
+  看不出问题，一旦有（比如给某个组做了摆动）就会静默按 0 渲染。`tools/preview_bbmodel.py`
+  现已两边都支持（`collect_quads` 里的 `groups` 查表）。
+- **元素几何不受影响**：同一模型 4.5 → 5.0 重新保存后，用同一渲染器渲染输出逐像素一致
+  （实测平均差 0.000），即保存只改格式、不改几何与 UV。
+- **重新生成会覆盖 GUI 修改**：生成脚本写 4.5；对已被 Blockbench 保存成 5.0 的文件重跑生成脚本，
+  文件会退回 4.5 且**丢掉在 GUI 里做的修改**。想保留 GUI 修改就别重跑脚本。
+- 元素的 `scope` 是 5.x 新增字段，观测到的工程里全为 0（模型空间）；非 0 的语义未验证——
+  解析时遇到非 0 应当显式报错，不要当作 0 静默处理。
+
+## 12. 组旋转（4.5 格式就支持）与组的变换代数
+
+实测对象：`us_soldier.bbmodel`（2026-09-25 的持枪士兵，本仓库第一个用组旋转的工程）。
+读的是 `js/formats/bbmodel.js`、`js/outliner/outliner.js`、`js/outliner/types/group.js`：
+
+| 源文件 | 代码 | 结论 |
+|---|---|---|
+| `formats/bbmodel.js` | `if (model.groups) { model.groups.forEach(t => new Group(t, t.uuid).init()) }`，之后才是 `if (model.outliner) Outliner.loadJSON(model.outliner)` | 顶层 `groups` 表**不是 5.0 专属**，4.5 文件里写了也会被读；两条路径都会跑 |
+| 同上 | `loadJSON` 遍历 outliner：`if (item.name != undefined) { obj instanceof Group ? obj.extend(item) : obj = new Group(item, item.uuid); obj.init() }`（源码注释就写着 `// Legacy group support`） | **4.5 的 outliner 节点只要带 `name` 就按组解析**，`new Group(node, node.uuid)` 会把 `origin`/`rotation` 从节点上读走 |
+| `outliner/types/group.js` | `new Property(Group, 'vector', 'origin', …); new Property(Group, 'vector', 'rotation');`，`extend()` 里 `for (key in Group.properties) Group.properties[key].merge(this, object)` | `origin`/`rotation` 是 Property 系统里的组属性；`extend` 里没单写这两项，是因为走了 Property 循环 |
+| `outliner/outliner.js` | `updateTransform`：`mesh.position.set(element.origin…)`；`if (Format.bone_rig) { parent.mesh.add(mesh); if (parent.getTypeBehavior('use_absolute_position')) mesh.position -= parent.origin }` | 组 origin 是**枢轴**：子节点写绝对模型座标，挂接时父 origin 被减掉，等价于逐层 `T(o)·R·T(-o)` |
+| `outliner/types/group.js` | `static behavior = {parent, movable, rotatable, has_pivot, use_absolute_position: true, …}` | 组确实具备 movable/rotatable/use_absolute_position，上一条对组成立 |
+| 同上 | 预览控制器 `setup`：`bone.rotation.order = Format.euler_order` | 组的旋转序同样是 `'ZYX'` = `Rz·Ry·Rx`，与元素一致 |
+
+写生成脚本时可直接用的推论：
+
+- 组旋转**不需要为了用它而升到 5.0**：4.5 的 outliner 节点写
+  `{"name": …, "origin": [...], "rotation": [rx,ry,rz], "children": [...]}` 即可（本仓库 `build_us_soldier.py` 就是这么写的，validator 与预览器都认）；
+- 复合式：`p_world = R_chain · p_authored + t`；沿树下推一层是
+  `R' = R @ R_local`、`t' = t + R @ (I - R_local) @ o`。
+  `R'` 是**父在左**（three.js 的 `parent_world · local`），写成 `R_local @ R` 会在两层以上时转反；
+- 由方向反解角度（求解姿态时反复用到，都是精确解不是近似）：
+  - 作用在 `(0,-1,0)`（自然下垂的肢体）上、只给 `rx`+`rz`：`rx = asin(-d_z)`，`rz = atan2(d_x, -d_y)`；
+  - 作用在 `(0,0,-1)`（指向北的枪管/炮管）上、只给 `rx`+`ry`：`rx = asin(d_y)`，`ry = atan2(-d_x, -d_z)`（这组恰好是"绕轴的最小滚转"）；
+  - `rot_ZYX` 的反解：`ry = asin(-R[2,0])`、`rz = atan2(R[1,0], R[0,0])`、`rx = atan2(R[2,1], R[2,2])`；`|R[2,0]| → 1` 是万向锁，必须显式报错；
+- **挂在旋转链下的物件**（本例：枪挂在右前臂组下）：让它在世界里落在 `G + R_world·L`
+  （`L` 是相对枢轴的局部偏移），正确写法是节点旋转取 `R_local = R_chain⁻¹·R_world`、
+  子方块座标写 `pivot + L`（L 原样，不要再乘一次 R_local）。错写成 `pivot + R_local·L`
+  会让物件整体转错一个 R_local——见 pitfalls.md 第 15 条。

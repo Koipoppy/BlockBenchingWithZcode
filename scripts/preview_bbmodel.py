@@ -7,7 +7,9 @@ Why this exists: the model is judged by looking at it, and the thing that judges
 not be the code that built it. Blockbench has no headless CLI (its plugins folder is not
 scanned at startup, so a project cannot be opened and screenshotted without a human in
 the GUI), so this is a small software rasteriser instead: z-buffered triangles, flat
-per-face shading, nearest-neighbour texture sampling, 2x supersampling.
+per-face shading, nearest-neighbour texture sampling, 2x supersampling, and two-pass
+alpha (all opaque quads first, then translucent ones far to near without depth writes,
+so translucent glass sits over the model instead of cutting it out).
 
 Conventions are the ones measured out of Blockbench's source, so the preview predicts
 what the GUI shows:
@@ -104,6 +106,11 @@ def decode_textures(doc) -> list[np.ndarray]:
 def collect_quads(doc):
     """Walk the outliner, compose transforms, emit world-space textured quads."""
     elements = {el["uuid"]: el for el in doc.get("elements") or []}
+    # Project format 5.0 -- what Blockbench itself writes on save -- moves group transforms
+    # into a top-level `groups` table and reduces outliner nodes to {uuid, isOpen,
+    # children}. Format 4.5 (what the build scripts emit) inlines them. Read both, or a
+    # group's rotation is silently dropped and the model renders in the wrong pose.
+    groups = {g.get("uuid"): g for g in doc.get("groups") or []}
     resolution = doc.get("resolution") or {"width": 64, "height": 64}
     tex_w = float(resolution.get("width", 64))
     tex_h = float(resolution.get("height", 64))
@@ -133,7 +140,7 @@ def collect_quads(doc):
             u1, v1, u2, v2 = data["uv"]
             verts = np.array([to_world(corner[k]) for k in FACE_VERTICES[face]])
             uvs = np.array([
-                ((u1 if cx else u2) / tex_w, (v1 if cy else v2) / tex_h)
+                ((u2 if cx else u1) / tex_w, (v2 if cy else v1) / tex_h)
                 for cx, cy in RECT_CORNERS
             ])
             normal = rot @ np.array(FACE_NORMALS[face], dtype=float)
@@ -143,7 +150,8 @@ def collect_quads(doc):
                           "texture": int(data.get("texture") or 0)})
 
     def walk(node, parent):
-        world = parent @ node_matrix(node.get("origin") or (0, 0, 0), node.get("rotation"))
+        source = node if ("origin" in node or "rotation" in node) else groups.get(node.get("uuid"), node)
+        world = parent @ node_matrix(source.get("origin") or (0, 0, 0), source.get("rotation"))
         for child in node.get("children") or []:
             if isinstance(child, dict):
                 if child.get("uuid") in elements:
@@ -177,7 +185,7 @@ def fill_polygon(mask, points) -> None:
         _raster(mask, None, points[list(tri)], None, None, 1.0)
 
 
-def _raster(color, depth, points, uvs, texture, shade):
+def _raster(color, depth, points, uvs, texture, shade, write_depth=True):
     """One triangle: barycentric fill with perspective-correct uv and a z-buffer."""
     height, width = color.shape[:2]
     x0, y0 = points[0][:2]
@@ -222,7 +230,8 @@ def _raster(color, depth, points, uvs, texture, shade):
     alpha = texture[ty, tx, 3:4]
     lit = texel * shade
     view[inside] = (lit * alpha + view * (1 - alpha))[inside]
-    zview[inside] = inv_w[inside]
+    if write_depth:
+        zview[inside] = inv_w[inside]
 
 
 def render(doc, textures, size=720, eye=(-40.0, 32.0, -40.0), target=(0.0, 12.0, 0.0),
@@ -262,20 +271,48 @@ def render(doc, textures, size=720, eye=(-40.0, 32.0, -40.0), target=(0.0, 12.0,
         color *= 1.0 - 0.34 * soft[:, :, None]
 
     depth = np.zeros((h, w), np.float32)
+
+    # Two passes, the way a real renderer handles transparency: everything
+    # opaque first (z-buffered, order-independent), then translucent quads far
+    # to near with no depth write, so glass tints whatever is behind it instead
+    # of erasing it. A quad is translucent when its sampled rect carries any
+    # partial alpha.
+    opaque, translucent = [], []
     for quad in quads:
-        screen, _ = project(quad["verts"])
-        # backface cull: with a z-buffer and many coincident interior faces, drawing the
-        # back side of a cube would fight the front side for the same pixels. This must
-        # be tested in world space -- project() returns camera-space points, and
-        # comparing those against the world-space eye silently culls visible faces.
-        if np.dot(quad["normal"], eye - quad["verts"].mean(axis=0)) <= 0:
-            continue
-        shade = face_shade(quad["normal"])
         tex = textures[min(quad["texture"], len(textures) - 1)]
-        for tri in TRIANGLES:
-            pts = [screen[i] for i in tri]
-            uvs = [quad["uvs"][i] for i in tri]
-            _raster(color, depth, pts, uvs, tex, shade)
+        th, tw = tex.shape[:2]
+        x0 = max(0, min(int(uv[0] * tw) for uv in quad["uvs"]))
+        x1 = min(tw, max(int(uv[0] * tw) + 1 for uv in quad["uvs"]))
+        y0 = max(0, min(int(uv[1] * th) for uv in quad["uvs"]))
+        y1 = min(th, max(int(uv[1] * th) + 1 for uv in quad["uvs"]))
+        alpha = tex[y0:y1, x0:x1, 3]
+        if alpha.size and alpha.min() >= 0.98:
+            opaque.append(quad)
+        else:
+            translucent.append(quad)
+
+    def cam_depth(quad):
+        forward = np.array(target, dtype=float) - eye
+        forward /= np.linalg.norm(forward)
+        return float(np.dot(quad["verts"].mean(axis=0) - eye, forward))
+
+    translucent.sort(key=cam_depth)
+
+    for pass_quads, write_depth in ((opaque, True), (translucent, False)):
+        for quad in pass_quads:
+            screen, _ = project(quad["verts"])
+            # backface cull: with a z-buffer and many coincident interior faces, drawing the
+            # back side of a cube would fight the front side for the same pixels. This must
+            # be tested in world space -- project() returns camera-space points, and
+            # comparing those against the world-space eye silently culls visible faces.
+            if np.dot(quad["normal"], eye - quad["verts"].mean(axis=0)) <= 0:
+                continue
+            shade = face_shade(quad["normal"])
+            tex = textures[min(quad["texture"], len(textures) - 1)]
+            for tri in TRIANGLES:
+                pts = [screen[i] for i in tri]
+                uvs = [quad["uvs"][i] for i in tri]
+                _raster(color, depth, pts, uvs, tex, shade, write_depth)
 
     img = Image.fromarray((np.clip(color, 0, 1) * 255).astype(np.uint8), "RGB")
     if ssaa > 1:

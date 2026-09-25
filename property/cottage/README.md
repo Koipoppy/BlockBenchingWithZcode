@@ -1,0 +1,63 @@
+# 精致小屋
+
+> 本文件夹是「精致小屋」的自包含目录：工程、贴图、预览都在这里。共享脚本在 `../tools/`，总索引见 [../README.md](../README.md)。
+
+Blockbench 工程：一间原版观感的小屋展示模型，把经典生存小屋的配方做全了——
+圆石基座、橡木板墙、原木角柱和墙顶横梁、内凹的门和窗、45° 阶梯深色木瓦屋顶、红砖烟囱，
+再加灯笼、花箱、阁楼小窗、石阶和步石这些"住人"的细节。
+
+| 文件 | 说明 |
+|---|---|
+| `cottage.bbmodel` | Blockbench 工程（160×160 贴图以 base64 内嵌，可直接打开） |
+| `cottage.png` | 同一张贴图，单独导出 |
+| `cottage_preview.png` / `_front.png` / `_side.png` | 三个角度的离线渲染预览 |
+| `../tools/build_cottage.py` | 一键生成脚本 |
+
+## 设计
+
+尺寸（1/16 格为单位，`y=0` 是地面，正面朝 -Z/北）：含出檐 footprint 26×18，总高 29
+（≈1.8 格，和肌肉苦力怕一个量级）。**全部方块轴对齐、零旋转**，所以 Java block model 也能无损导出。
+
+- **基座**：24×18×3 圆石，四周出 1 格边线；门前两级石阶，草地上一东一西两块步石；
+- **墙**：22×16 外廓、10 高，橡木板；四角 2×2 原木柱，墙顶一圈 2×2 原木横梁（端面画年轮）；
+- **门窗**：门 6×10（深框 + 亮窗 + 门把手），前墙两扇 4×5 窗、侧墙各一扇、后墙一扇，
+  全部内凹 1 格（洞是真的几何洞，玻璃盒缩在里面，玻璃是画出来的浅蓝 + 斜向反光）；
+- **屋顶**：45° 阶梯深色木瓦，每行 2×2、向两侧出檐 2 格，6 行 + 脊线盖；前后山墙是随坡收分的阶梯板墙三角，
+  正面山墙挂一扇 4×3 阁楼小窗；
+- **烟囱**：4×4 红砖从东坡穿出，顶部 6×6 砖帽 + 深色烟道口；
+- **点缀**：门边墙挂一盏发光灯笼（黑框黄光），两扇前窗下各一个深色橡木花箱（红花黄花相间），后窗也有一个。
+
+## 骨骼
+
+```
+cottage
+├─ foundation            基座 + 石阶 + 步石
+├─ walls                 墙板 + 角柱 + 横梁 + 窗玻璃
+├─ roof                  山墙 + 屋顶行 + 脊线 + 烟囱 + 阁楼窗
+├─ door (-3,8,-6.5)      门（pivot 在门轴左缘，旋转组即可做开门动画）
+└─ details               灯笼 + 花箱 + 花
+```
+
+## 重新生成 / 改动
+
+```bash
+python ../tools/build_cottage.py
+python ../tools/preview_bbmodel.py cottage.bbmodel cottage_preview.png       --azimuth 225 --elevation 22 --distance 82 --target 0 13 0 --ground 14
+python ../tools/preview_bbmodel.py cottage.bbmodel cottage_preview_front.png --azimuth 180 --elevation 9  --distance 80 --target 0 13 0 --ground 14
+python ../tools/preview_bbmodel.py cottage.bbmodel cottage_preview_side.png  --azimuth 90  --elevation 12 --distance 80 --target 0 13 0 --ground 14
+```
+
+- 调色板：脚本顶部的 `PLANK` / `DARK` / `BARK` / `COBBLE` / `BRICK` / `SHINGLE` / `GLASS` 等；
+- 几何：`build_tree()` 里各方块坐标（面 → 材质的映射在 `FM()`，如 `FM(all="planks", up="log_end")`）；
+- 贴图画法：`PAINTERS` 里每个材质一个画笔，按矩形尺寸自适应（木板 3px 一板、圆石随机石块、砖错缝、瓦 2px 一垄）。
+
+贴图和前两个模型不同，用的是**共享图集**：每个（材质, 宽, 高）组合一个矩形，
+同尺寸同材质的面共用一张（材质全是噪点/对称图案，共用看不出）。矩形是按需从面生成的，
+不存在"某面指错 UV"的问题；没被任何面用到的角落依然是品红（自检约定保留）。
+
+## 已知限制
+
+- 玻璃没有真透明（画的浅蓝），从窗外看不见屋内——屋内本来就是空的。
+- 阁楼窗是**凸出**山墙 1 格的挂窗：山墙是实心阶梯三角，没有给它挖洞。
+- 官方材质拿不到（网络封锁），所有颜色按原版观感手调。
+- 预览渲染器同前两个模型（z-buffer + 原版面光照），与 Blockbench 视口观感接近但不完全相同。

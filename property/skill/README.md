@@ -70,3 +70,7 @@ python scripts/preview_bbmodel.py example/bawanghua_flower_pot.bbmodel preview.p
    细节表进 `references/bbmodel-format.md`，坑的完整定位过程进 `references/pitfalls.md`；
 3. 本目录的 `scripts/` 可以按需改进，但改完要保证 `example/` 仍能一键重新生成；
 4. 与发布版的同步时机由你决定：发布版只保留已在模型上验证过的结论。
+5. 同步到 property 分支时**只复制该发布的内容**：各模型文件夹、`tools/`、`skill/`、`README.md`；
+   排除 `参考/`（第三方素材）、`_ref/`（角色参考图）、`_cmp/`（对照调试产物）、`out/`（临时输出）。
+   仓库根 `.gitignore` 已列出这些，但整目录 `cp -r` 仍会把它们带进 git 工作区，
+   而切回 main 后它们就成了未跟踪文件——下一次 `git add -A` 会把第三方素材一起公开出去。

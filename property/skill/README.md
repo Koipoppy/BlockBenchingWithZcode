@@ -36,6 +36,11 @@ python scripts/preview_bbmodel.py example/bawanghua_flower_pot.bbmodel preview.p
 版本基于 Blockbench 5.2.1（Windows 安装版）。换版本时，skill 里的实证方法
 （uvprobe 探针 + source map 提取）可以重新核对一遍。
 
+> **待同步到发布版**（main）：发布版的 `scripts/preview_bbmodel.py` 还是**修复前**的版本——
+> 逐面 UV 角的三元写反，会把每个面的贴图渲染成 180° 旋转；工作版这里已经是修好的版本。
+> 下次同步时记得带上这个修复。
+
+
 ## 版本关系与维护约定
 
 | 位置 | 角色 |

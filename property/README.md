@@ -4,7 +4,7 @@
 |---|---|---|
 | [霸王花盆栽](bawanghua_flower_pot/README.md) | `bawanghua_flower_pot/` | 原版花盆里种一棵 PvZ 风格霸王花 |
 | [肌肉苦力怕](muscle_creeper/README.md) | `muscle_creeper/` | 原版风格的重肌苦力怕：宽肩、粗臂、经典鬼脸 |
-| [精致小屋](cottage/README.md) | `cottage/` | 原版风格小屋：石基板墙、原木柱、阶梯屋顶、烟囱灯笼花箱 |
+| [精致小屋](cottage/README.md) | `cottage/` | 原版风格小屋：石基板墙、原木柱、整片斜板屋顶、烟囱灯笼花箱 |
 | [三层宝塔](pagoda/README.md) | `pagoda/` | 石台上的三层白墙黑瓦佛塔，金色塔刹 |
 | [雷电将军](raiden_shogun/README.md) | `raiden_shogun/` | 原版人形骨架的雷电将军：麻花辫、和服、袴裙 |
 | [瓶中帆船](ship_in_bottle/README.md) | `ship_in_bottle/` | 半透明玻璃瓶里一艘全套帆装的小帆船 |
@@ -23,6 +23,11 @@
 
 格式约定（所有模型通用，实测自 Blockbench 5.2.1 源码，详见[霸王花盆栽的文档](bawanghua_flower_pot/README.md)）：
 **Generic Model (free)** 格式、逐面 UV（`v` 从上往下、从外侧看正立不镜像）、朝向 -Z（北）为正面。
+
+工程格式版本：生成脚本写 `format_version 4.5`；**用 Blockbench 打开并保存过的工程会变成 5.0**
+（组的 origin/rotation 移到顶层 `groups` 表，outliner 只剩 uuid 引用），解析脚本两边都要能读，
+详见 `skill/references/bbmodel-format.md` §11。实测 4.5→5.0 保存只改格式、不改几何（渲染逐像素一致），
+但在 GUI 里的修改会被重跑生成脚本覆盖。
 
 ## 目录结构
 

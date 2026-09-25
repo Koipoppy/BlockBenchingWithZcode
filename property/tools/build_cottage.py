@@ -5,18 +5,29 @@
 Writes ../cottage/cottage.bbmodel (texture embedded as a data URI) and ../cottage/cottage.png
 (the same texture, standalone).
 
-A vanilla-style cottage display model, built entirely from axis-aligned cubes
-so it also exports cleanly to a Java block model. The look is the classic
-survival-house recipe: cobblestone foundation with a lip, oak plank walls with
-bark-log corner posts and a log ring beam, recessed door and windows, a 45
-degree stepped dark-shingle roof with overhang and gables, a brick chimney,
-plus the cottage dressing: wall lantern, flower boxes, a small attic window,
-stone steps and stepping stones.
+A vanilla-style cottage display model. The look is the classic survival-house
+recipe: cobblestone foundation with a lip, oak plank walls with bark-log corner
+posts and a log ring beam, recessed door and windows, a smooth dark-shingle
+roof made of two full slabs rotated +-45 degrees about the ridge (one cube per
+slope instead of stair-stepped rows) with a ridge cap, a brick chimney, plus
+the cottage dressing: wall lantern, flower boxes, a small attic window, stone
+steps and stepping stones.
 
 Layout (units of 1/16 block, ground y=0, front faces -Z / north):
   foundation 24x3x18 at x +-12 / z +-9, walls 22x10x16 (y 3..13), log ring
-  y 13..15, roof rows from y 15 up to the ridge cap at y 29. Total height 29
-  (~1.8 blocks), footprint with eaves 26 x 18.
+  y 13..15, roof slabs from the eaves (outer edge x +-13, y 16) up to the
+  ridge at y 29. Total height ~29 (~1.8 blocks), footprint with eaves 26 x 18.
+  Everything is axis-aligned except the two roof slabs; their +-45 deg
+  rotation is a multiple of 22.5 deg, so a Java block model export stays legal.
+
+Slab geometry (east, mirrored for west): pivot at the ridge point (0,29,0),
+pre-rotation box x 0.7071..18.3848 (down-slope), y 26..29 (3 thick), z -9..9,
+rotated -45 deg. Outer face lands on the 45 deg line x+y=29 through (0,29) and
+(13,16). The box stops 1 unit short of the peak so the two slabs' end cuts sit
+on y-+x=28, one unit clear of each other's outer face (y-+x=29) -- no coplanar
+z-fight; the notch at the peak is hidden by the ridge cap. The stepped gables
+are kept underneath: the slabs swallow their tops, and below the slab underside
+(x+y=29-3*sqrt(2)) they form a continuous wall, so no gap opens under the roof.
 
 Format conventions are the ones measured out of Blockbench's source (see
 build_bawanghua_pot.py): per-face uv rects upright and unmirrored seen from
@@ -236,6 +247,22 @@ def paint_shingle(cv, r, key):
         course += 1
 
 
+def paint_shingle_slope(cv, r, key):
+    """Shingles for a slope face: courses stack down the slope (across u)."""
+    a = at(cv, r)
+    w, h = r[2], r[3]
+    rng = rng_for(key)
+    course = 0
+    for col in range(0, w, 2):
+        tone = rng.choice((1, 1, 2, 2, 3))
+        a[:, col] = (*shade(SHINGLE, max(0, tone - 1)), 255)
+        if col + 1 < w:
+            a[:, col + 1] = (*shade(SHINGLE, tone), 255)
+            for sy in range(course % 2, h, 3):
+                a[sy, col + 1] = (*shade(SHINGLE, 3), 255)
+        course += 1
+
+
 def paint_glass(cv, r, key):
     """Wood-framed window: pale glass, lit top edge, one diagonal streak."""
     x, y, w, h = r
@@ -308,7 +335,8 @@ def paint_cap_top(cv, r, key):
 PAINTERS = {
     "planks": paint_planks, "dark": paint_dark, "bark": paint_bark,
     "log_end": paint_log_end, "cobble": paint_cobble, "brick": paint_brick,
-    "shingle": paint_shingle, "glass": paint_glass, "door": paint_door,
+    "shingle": paint_shingle, "shingle_slope": paint_shingle_slope,
+    "glass": paint_glass, "door": paint_door,
     "lantern": paint_lantern, "lantern_black": paint_lantern_black,
     "flower_red": paint_flower_red, "flower_yellow": paint_flower_yellow,
     "cap_top": paint_cap_top,
@@ -391,8 +419,9 @@ def FM(all=None, sides=None, ns=None, ew=None, tb=None, **faces):
     return m
 
 
-def cube(name, frm, to, facemap):
-    return {"name": name, "from": frm, "to": to, "faces": facemap}
+def cube(name, frm, to, facemap, origin=(0, 0, 0), rotation=None):
+    return {"name": name, "from": frm, "to": to, "faces": facemap,
+            "origin": origin, "rotation": rotation}
 
 
 def build_tree():
@@ -451,26 +480,30 @@ def build_tree():
                       FM(all="bark", north="log_end", south="log_end")))
     group("walls", walls)
 
-    # --- roof: stepped shingle rows, gables, ridge, chimney ------------------
+    # --- roof: two smooth shingle slabs, gables, ridge, chimney --------------
     roof = []
-    # gable steps: j=0 widest, tracking the roof underside above the wall plane
+    # gable steps: j=0 widest. The slabs swallow their tops; below the slab
+    # underside they are the wall, so no gap opens under the roof.
     for side, z0, z1 in (("front", -8, -6), ("back", 6, 8)):
         for j in range(6):
             x = 11 - 2 * j
             roof.append(cube(f"gable_{side}_{j}", (-x, 15 + 2 * j, z0),
                              (x, 17 + 2 * j, z1), FM(all="planks")))
-    # small attic window mounted proud of the front gable face
+    # small attic window mounted proud of the front gable face, tucked just
+    # under the roof slab (its top stays ~0.25 clear of the slab underside)
     roof.append(cube("window_attic", (-2, 19.5, -9), (2, 22.5, -8), FM(all="glass")))
-    # roof rows: k=0 is the eave overhang, each row steps 2 in and 2 up
-    for k in range(6):
-        x0, x1 = 11 - 2 * k, 13 - 2 * k
-        y0, y1 = 15 + 2 * k, 17 + 2 * k
-        roof.append(cube(f"roof_east_{k}", (x0, y0, -9), (x1, y1, 9), FM(all="shingle")))
-        roof.append(cube(f"roof_west_{k}", (-x1, y0, -9), (-x0, y1, 9), FM(all="shingle")))
-    roof.append(cube("ridge", (-1, 27, -9), (1, 29, 9), FM(all="shingle")))
+    # the roof itself: one full slab per slope, rotated +-45 deg about the
+    # ridge pivot (0,29,0) -- see the module docstring for the exact numbers.
+    roof.append(cube("roof_slope_east", (0.7071, 26, -9), (18.3848, 29, 9),
+                     FM(all="shingle", up="shingle_slope"),
+                     origin=(0, 29, 0), rotation=(0, 0, -45)))
+    roof.append(cube("roof_slope_west", (-18.3848, 26, -9), (-0.7071, 29, 9),
+                     FM(all="shingle", up="shingle_slope"),
+                     origin=(0, 29, 0), rotation=(0, 0, 45)))
+    roof.append(cube("ridge", (-1, 27, -9), (1, 29.25, 9), FM(all="shingle")))
     # brick chimney punching through the east slope, with a capped top
-    roof.append(cube("chimney_shaft", (4, 1, -2), (8, 26, 2), FM(all="brick")))
-    roof.append(cube("chimney_cap", (3, 26, -3), (9, 27, 3),
+    roof.append(cube("chimney_shaft", (4, 1, -2), (8, 28, 2), FM(all="brick")))
+    roof.append(cube("chimney_cap", (3, 28, -3), (9, 29, 3),
                      FM(all="brick", up="cap_top")))
     group("roof", roof)
 
@@ -541,12 +574,14 @@ def write_model(path: str, tree, atlas: Atlas, texture: Image.Image) -> int:
             "name": c["name"],
             "from": [float(v) for v in c["from"]],
             "to": [float(v) for v in c["to"]],
-            "origin": [0.0, 0.0, 0.0],
+            "origin": [float(v) for v in c.get("origin") or (0, 0, 0)],
             "uuid": str(uuid.uuid4()),
             "faces": {},
             "type": "cube",
             "color": 0,
         }
+        if c.get("rotation"):
+            el["rotation"] = [float(v) for v in c["rotation"]]
         for face in FACES:
             mat = c["faces"][face]
             w, h = face_size(face, c["from"], c["to"])

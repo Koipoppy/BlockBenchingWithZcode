@@ -5,6 +5,11 @@
 Blockbench 工程：一只半透明玻璃瓶，瓶底铺着沙床和海面，里面封着一艘全套帆装的小帆船——
 主桅带着瞭望旗**伸进瓶颈**，是经典瓶中船的姿势。
 
+> **注意：本工程现在是 Blockbench 5.0 格式**（`meta.format_version = "5.0"`）——它在 Blockbench 里被打开
+> 保存过，组的 origin/rotation 已移到顶层 `groups` 表，文件也不再是生成脚本的输出格式。
+> 重跑 `../tools/build_ship_in_bottle.py` 会把它写回 4.5 并**覆盖掉在 GUI 里做的修改**。
+> 几何已核对未变：4.5 与 5.0 两个版本用同一渲染器渲染逐像素一致；离线渲染器已支持两种格式。
+
 | 文件 | 说明 |
 |---|---|
 | `ship_in_bottle.bbmodel` | Blockbench 工程（64×64 贴图以 base64 内嵌，可直接打开） |

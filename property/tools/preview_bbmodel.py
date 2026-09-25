@@ -106,6 +106,11 @@ def decode_textures(doc) -> list[np.ndarray]:
 def collect_quads(doc):
     """Walk the outliner, compose transforms, emit world-space textured quads."""
     elements = {el["uuid"]: el for el in doc.get("elements") or []}
+    # Project format 5.0 -- what Blockbench itself writes on save -- moves group transforms
+    # into a top-level `groups` table and reduces outliner nodes to {uuid, isOpen,
+    # children}. Format 4.5 (what the build scripts emit) inlines them. Read both, or a
+    # group's rotation is silently dropped and the model renders in the wrong pose.
+    groups = {g.get("uuid"): g for g in doc.get("groups") or []}
     resolution = doc.get("resolution") or {"width": 64, "height": 64}
     tex_w = float(resolution.get("width", 64))
     tex_h = float(resolution.get("height", 64))
@@ -145,7 +150,8 @@ def collect_quads(doc):
                           "texture": int(data.get("texture") or 0)})
 
     def walk(node, parent):
-        world = parent @ node_matrix(node.get("origin") or (0, 0, 0), node.get("rotation"))
+        source = node if ("origin" in node or "rotation" in node) else groups.get(node.get("uuid"), node)
+        world = parent @ node_matrix(source.get("origin") or (0, 0, 0), source.get("rotation"))
         for child in node.get("children") or []:
             if isinstance(child, dict):
                 if child.get("uuid") in elements:

@@ -166,3 +166,29 @@ asar 头部（小端 u32）：
 以上任何一条都可以（也应该）用探针实证：造一个立方体，六个面各涂一种纯色 +
 白色箭头指向矩形 -v 方向 + 角落放一个黑点，渲染六个方向，读图即可一次确定全部六面的
 方向映射。改 Blockbench 版本或换导出路径时重跑一次，两分钟。
+
+## 11. 工程格式版本：4.5（脚本写的）与 5.0（Blockbench 保存写的）
+
+实测对象：`property/ship_in_bottle/ship_in_bottle.bbmodel`——在 Blockbench 里打开并保存过一次。
+
+| | 4.5（本仓库生成脚本写出的） | 5.0（Blockbench 自己保存写出的） |
+|---|---|---|
+| `meta.format_version` | `"4.5"` | `"5.0"` |
+| 组的 name/origin/rotation | 内联在 outliner 节点里 | 移到顶层 `groups` 数组 |
+| outliner 节点 | `{name, origin, rotation, uuid, children}` | `{uuid, isOpen, children}`（纯引用） |
+| 元素额外字段 | 无 | `scope` / `autouv` / `export` / `locked` / `allow_mirror_modeling` / `render_order` … |
+| 数字写法 | `1.0` / `0.0` | 能取整就写整数（`0` 而非 `0.0`） |
+| 额外顶层键 | 无 | `groups` / `model_identifier` / `timeline_setups` / `visible_box` / `unhandled_root_fields` / `variable_placeholder*` / `multi_file_ruleset` |
+
+要点：
+
+- **解析器两边都要读**：outliner 节点里没有 `origin`/`rotation` 时，按 `uuid` 去顶层 `groups` 表取。
+  组的 `origin` 只是 pivot（**不**平移子元素），所以真正会丢的是**组的旋转**——没有旋转组时
+  看不出问题，一旦有（比如给某个组做了摆动）就会静默按 0 渲染。`tools/preview_bbmodel.py`
+  现已两边都支持（`collect_quads` 里的 `groups` 查表）。
+- **元素几何不受影响**：同一模型 4.5 → 5.0 重新保存后，用同一渲染器渲染输出逐像素一致
+  （实测平均差 0.000），即保存只改格式、不改几何与 UV。
+- **重新生成会覆盖 GUI 修改**：生成脚本写 4.5；对已被 Blockbench 保存成 5.0 的文件重跑生成脚本，
+  文件会退回 4.5 且**丢掉在 GUI 里做的修改**。想保留 GUI 修改就别重跑脚本。
+- 元素的 `scope` 是 5.x 新增字段，观测到的工程里全为 0（模型空间）；非 0 的语义未验证——
+  解析时遇到非 0 应当显式报错，不要当作 0 静默处理。

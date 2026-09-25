@@ -49,10 +49,9 @@ python scripts/preview_bbmodel.py example/bawanghua_flower_pot.bbmodel preview.p
 | 2026-09-25 | 其它会话的积累：pitfalls #13（镜像函数把轴心整个取负）、#14（旋转件 from/to 与 origin 不在同一坐标系）、速查表第 10 条改为"WebSearch 摘要可用但取不到图" |
 | 2026-09-25 | 无头 MCP 接入与对照结论（[references/headless-mcp.md](references/headless-mcp.md)）：第三方校验 / 渲染 / 导出三层对照，镜像门与 floating 门的读法，导出缺 root 骨骼的差异 |
 
-> **待同步到发布版**（main）：上面这一整批都还没过去——**尤其发布版的
-> `scripts/preview_bbmodel.py` 仍是修复前的版本**（逐面 UV 角写反）。同步时把本目录
-> （`SKILL.md` / `references/` / `scripts/` / `README.md` / `example/`）整体覆盖到 main 即可；
-> 发布版没有 `property/`，不存在冲突。
+> **已同步到发布版**（main，2026-09-25，commit `ea09422`）：上表这一批已整体覆盖过去，
+> 发布版的 `scripts/preview_bbmodel.py` 也已是修复后的版本。之后的积累继续按下面 1–5 步走，
+> 攒到值得发布时再覆盖一次。
 
 
 ## 版本关系与维护约定

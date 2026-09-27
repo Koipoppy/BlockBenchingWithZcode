@@ -111,7 +111,7 @@ loong (0,0,0)                     根；动画里做整体上下浮动
 ## 重新生成 / 改动
 
 ```bash
-cd ../            # property/
+cd ../            # 仓库根目录（原 property/）
 python tools/build_golden_loong.py          # 重新授权工程（会覆盖 .bbmodel）
 python tools/preview_bbmodel.py golden_loong/golden_loong.bbmodel golden_loong/golden_loong_preview.png      --azimuth 225 --elevation 20 --distance 250 --target 0 48 0 --ground 6 --size 900
 python tools/preview_bbmodel.py golden_loong/golden_loong.bbmodel golden_loong/golden_loong_preview_front.png --azimuth 180 --elevation 8  --distance 240 --target 0 50 0 --ground 6 --size 900

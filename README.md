@@ -1,4 +1,4 @@
-# property — Minecraft 风格 Blockbench 模型集
+# BlockBenchingWithZcode — Minecraft 风格 Blockbench 模型集
 
 | 模型 | 工程 | 一句话 |
 |---|---|---|
@@ -36,10 +36,11 @@
 
 ## 目录结构
 
-一个模型一个文件夹，文件夹名 = 模型名：
+**本仓库根目录就是模型工作目录**（2026-09-27 把原来那层 `property/` 拍平到了根）：
+一个模型一个文件夹，文件夹名 = 模型名。
 
 ```
-property/
+<仓库根>
 ├─ README.md            本文件：总索引
 ├─ tools/               共享脚本：各模型的一键生成 + 离线渲染器 + Bedrock 导出
 └─ <模型名>/
@@ -49,4 +50,4 @@ property/
    └─ README.md         该模型的设计说明与重新生成方法
 ```
 
-生成脚本（`tools/build_*.py`）的输出目录已指向各自模型文件夹，在 property 里重新生成不会散落到根目录。
+生成脚本（`tools/build_*.py`）的输出目录已指向各自模型文件夹，重新生成不会散落到根目录之外。

@@ -1,7 +1,7 @@
 # 地狱飞龙（hell_dragon）v3
 
 巨型西方地狱飞龙 v6，Boss 级游戏实体模型。全程经 headless MCP（`blockbench-mcp-headless` 1.9.1）
-建模、校验、渲染、导出；生成脚本 `property/tools/build_hell_dragon.py`，重跑即可复现。
+建模、校验、渲染、导出；生成脚本 `tools/build_hell_dragon.py`，重跑即可复现。
 
 ## v3/v4 重做（用户验收意见驱动）
 

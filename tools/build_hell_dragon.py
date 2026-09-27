@@ -7,7 +7,7 @@ v3 重做要点（用户验收意见）：
   （三角面片 + 扇形收口后缘），内翼膜连到体侧；
 * 腿：四条完整可见（髋/股/胫/足 + 每足 3 爪），挂在躯干两侧下方。
 
-产出 property/hell_dragon/。重跑即可复现。
+产出 hell_dragon/（仓库根下的模型文件夹）。重跑即可复现。
 validate 用 interpenetration_depth=1.35：pitched 链节交界的楔形重叠
 （≈(w/2)·sinΔθ ≤ 1.1）是有意连接，已在 README 声明。
 """
@@ -26,8 +26,8 @@ import zlib
 from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.dirname(os.path.dirname(HERE))
-PROP = os.path.join(REPO, "property")
+REPO = os.path.dirname(os.path.dirname(HERE))   # 上一级：工作区（放 .mcp 的那层）
+PROP = os.path.dirname(HERE)                    # 本仓库根 = 模型目录
 OUT_DIR = os.path.join(PROP, "hell_dragon")
 MODEL = os.path.join(OUT_DIR, "hell_dragon.bbmodel")
 TEX_PNG = os.path.join(OUT_DIR, "hell_dragon.png")

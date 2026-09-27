@@ -20,7 +20,7 @@
 | `tools/build_*.py` | 各模型的一键生成脚本（贴图 + 几何 + 写出 `.bbmodel`） |
 | `tools/export_bedrock.py` | 手写 Bedrock 几何导出（`compileCube`/`compileGroup` 规则实测自 Blockbench 源码），肌肉苦力怕那份 `.geo.json` 就是它导的 |
 | `tools/build_raiden_shogun.py`、`tools/build_m1a2_abrams.py`、`tools/compare_model.py` | **已退役模型**（雷电将军 / M1A2）的生成器与打分工具：模型文件夹已删（2026-09-27），脚本留下作参考实现——`prism()` 棱台 mesh 生成器、以及"按参考图实测地标逐项打分"的做法 |
-| 工作区 `.mcp/`（本目录之外） | **无头 MCP**：第三方校验 / 渲染 / 导出 / 编辑 `.bbmodel`，不需要 Blockbench 运行。用法与对照结论见 `skill/references/headless-mcp.md`；`call_tool.py` 的 `Client` 可 import，用来让生成脚本**通过 MCP 授权**整个工程（金龙的做法） |
+| 工作区 `.mcp/`（本目录之外） | **无头 MCP**：第三方校验 / 渲染 / 导出 / 编辑 `.bbmodel`，不需要 Blockbench 运行；`call_tool.py` 的 `Client` 可 import，用来让生成脚本**通过 MCP 授权**整个工程（金龙的做法） |
 
 > **2026-09-24 修复**：`preview_bbmodel.py` 的逐面 UV 采样条件原本写反了，导致预览图里
 > 每个面都被渲染成 180° 旋转（`v` 轴上下颠倒 + 左右镜像）。`bbmodel` 工程本身从来没受过影响
@@ -31,8 +31,7 @@
 **Generic Model (free)** 格式、逐面 UV（`v` 从上往下、从外侧看正立不镜像）、朝向 -Z（北）为正面。
 
 工程格式版本：生成脚本写 `format_version 4.5`；**用 Blockbench 打开并保存过的工程会变成 5.0**
-（组的 origin/rotation 移到顶层 `groups` 表，outliner 只剩 uuid 引用），解析脚本两边都要能读，
-详见 `skill/references/bbmodel-format.md` §11。实测 4.5→5.0 保存只改格式、不改几何（渲染逐像素一致），
+（组的 origin/rotation 移到顶层 `groups` 表，outliner 只剩 uuid 引用），解析脚本两边都要能读。实测 4.5→5.0 保存只改格式、不改几何（渲染逐像素一致），
 但在 GUI 里的修改会被重跑生成脚本覆盖。
 
 ## 目录结构
@@ -42,7 +41,6 @@
 ```
 property/
 ├─ README.md            本文件：总索引
-├─ skill/               skill 工作版（随建模一起积累更新，见下）
 ├─ tools/               共享脚本：各模型的一键生成 + 离线渲染器 + Bedrock 导出
 └─ <模型名>/
    ├─ <模型名>.bbmodel  Blockbench 工程（贴图 base64 内嵌，双击即看）
@@ -52,18 +50,3 @@ property/
 ```
 
 生成脚本（`tools/build_*.py`）的输出目录已指向各自模型文件夹，在 property 里重新生成不会散落到根目录。
-
-## skill（工作版，随建模持续积累）
-
-`skill/` 是这份分支随模型一起维护的 **skill 工作版**：格式实测表、踩坑记录、生成与渲染脚本都在里面。
-
-- 每次建模——新做模型、发现新的格式事实、踩到新的坑、改进渲染器——都应当把经验**回写到这里**：
-  规则进 `skill/SKILL.md`，细节表进 `skill/references/bbmodel-format.md`，
-  坑的完整定位过程进 `skill/references/pitfalls.md`；
-- 验证不止自建那几道门：**无头 MCP**（`bbmodel_validate` / `bbmodel_render` / `bbmodel_export_*`）
-  是独立实现、跑 Blockbench 自己的编解码器规则，用来做第三方对照；
-- 同时在对应模型的 `README.md` 里记一句"这次新增/改了什么"；
-- 仓库根目录的那份 skill（与 main 分支一致）是**发布版**，只沉淀已验证成熟的结论：
-  工作版里试出来的东西先在模型上验证，再决定何时往发布版同步。
-
-维护细则写在 `skill/README.md` 的「版本关系与维护约定」里。

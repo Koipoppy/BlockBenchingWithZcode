@@ -37,7 +37,7 @@ so the inline-group format of the 4.5 project stays unambiguous. Rotations are
 arbitrary degrees, which the 'free' format allows (Java block export would not).
 
 Format conventions are the ones measured out of Blockbench's source (see
-build_bawanghua_pot.py / skill/references/bbmodel-format.md): per-face uv rects
+build_bawanghua_pot.py): per-face uv rects
 upright and unmirrored seen from outside, v from the top; model_format 'free'.
 Shared atlas like the cottage: every face samples the rect for its (material,
 width, height) pair. Painters are noise/symmetric -- the plaque motif and the

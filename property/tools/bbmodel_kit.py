@@ -4,8 +4,7 @@
     from bbmodel_kit import (rot_ZYX, euler_ZYX, walk_groups,
                              coplanar_conflicts, posed_contacts, stretch_report)
 
-Everything here encodes facts measured out of Blockbench 5.2.1 (see
-skill/references/bbmodel-format.md), not assumptions:
+Everything here encodes facts measured out of Blockbench 5.2.1, not assumptions:
 
 * element/group transform = T(origin) . Rz*Ry*Rx . T(-origin), nested down the
   tree, with children authored in absolute model space (Group.behavior has

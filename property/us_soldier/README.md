@@ -50,14 +50,13 @@ Blockbench 的实现是同一件事）。
 > 而 `origin`/`rotation` 正是 `Group.properties` 里的两项；`js/outliner/outliner.js` 的
 > `updateTransform` 对 `use_absolute_position` 的父节点做 `mesh.position -= parent.origin`。
 > 换句话说：**组旋转 = `T(origin)·R·T(-origin)`，子元素写绝对座标**——本题的整个姿态都建立在这条上。
-> 细节写在 `../skill/references/bbmodel-format.md` §12。
 
 **组的两份表都写了**：outliner 节点内联 `name/origin/rotation/children`（4.5 legacy 路径），
 **同时**写一份顶层 `groups` 表（5.0 布局）。两边 uuid 一致，Blockbench 加载时按 uuid 合并、不会重复。
 这么做是因为实测发现：**只写内联那份时，Blockbench 本体与它的 validator 都正确，
 但第三方渲染器（bb-render）会渲染成复位姿态**——它只认顶层 `groups` 表。
 交叉验证就是靠这条抓到的（`us_soldier_crosscheck_mcp.png` 是补上 `groups` 表之后、
-第三方渲染器给出的姿态正确的结果）。详见 `../skill/references/pitfalls.md` #22。
+第三方渲染器给出的姿态正确的结果）。
 
 ## 骨骼（可直接做动画）
 

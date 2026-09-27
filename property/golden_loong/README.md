@@ -6,9 +6,9 @@
 身前悬着一颗发光的**宝珠**。**199 个方块、41 个组、两张 1024×1024 贴图**
 （`_body` 普通 / `_glow` 自发光），外加一条 3 秒的**腾云游动循环**动画。
 
-本次回写进 skill 的：`skill/references/headless-mcp.md`（用 MCP 授权整个工程的流程与四个实测要点、
-`mirror`/`interpenetration` 两道门"用不上"的情形）、`skill/SKILL.md`（"弯曲的躯体：让曲线决定每节的角度"
-一节 + 坑 24~28：鳞画成网格、鼻孔做成几何、腹甲过亮、腿太直、非平面姿态撞 mirror 门）。
+本轮沉淀的经验（用 MCP 授权整个工程的流程与四个实测要点、`mirror`/`interpenetration` 两道门"用不上"的
+情形、"弯曲的躯体：让曲线决定每节的角度"、以及鳞画成网格 / 鼻孔做成几何 / 腹甲过亮 / 腿太直 /
+非平面姿态撞 mirror 门这几个坑）原先回写在 skill 文档里；**那份 skill 已于 2026-09-27 按要求整体删除**。
 
 | 文件 | 说明 |
 |---|---|
@@ -33,8 +33,7 @@ bbmodel_edit          → add_animation ×1 + set_keyframe ×546
 
 脚本用 `../.mcp/call_tool.py` 里的 `Client` 直接跟服务端讲 MCP（stdio + JSON-RPC），
 所以 op 的 JSON 全程不经过人眼、也不用复制粘贴。好处是格式由服务端负责：工程落到盘上就是
-Blockbench 自己保存的 5.0 布局（组的 origin/rotation 在顶层 `groups` 表，见
-`../skill/references/bbmodel-format.md` §11）。
+Blockbench 自己保存的 5.0 布局（组的 origin/rotation 在顶层 `groups` 表）。
 
 ## 造型
 

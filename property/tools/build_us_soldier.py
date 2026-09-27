@@ -27,8 +27,7 @@ muzzle land where intended.
 
 Format facts relied on here were read out of Blockbench 5.2.1's own source
 (dist/bundle.js.map -> js/formats/bbmodel.js, js/outliner/outliner.js,
-js/outliner/types/group.js), not from memory -- see
-skill/references/bbmodel-format.md §12:
+js/outliner/types/group.js), not from memory:
 
   * a 4.5-format outliner node that has a `name` is loaded as a "legacy group"
     and `new Group(node, node.uuid)` merges `origin` + `rotation` off the node;

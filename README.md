@@ -19,7 +19,7 @@
 | `tools/bbmodel_kit.py` | 格式变换代数（`rot_ZYX`/`euler_ZYX`/`walk_groups`）+ 三项结构自检（共面 z-fighting、姿态后接触、贴图拉伸） |
 | `tools/build_*.py` | 各模型的一键生成脚本（贴图 + 几何 + 写出 `.bbmodel`） |
 | `tools/export_bedrock.py` | 手写 Bedrock 几何导出（`compileCube`/`compileGroup` 规则实测自 Blockbench 源码），肌肉苦力怕那份 `.geo.json` 就是它导的 |
-| `tools/build_raiden_shogun.py`、`tools/build_m1a2_abrams.py`、`tools/compare_model.py` | **已退役模型**（雷电将军 / M1A2）的生成器与打分工具：模型文件夹已删（2026-09-27），脚本留下作参考实现——`prism()` 棱台 mesh 生成器、以及"按参考图实测地标逐项打分"的做法 |
+| `tools/compare_model.py` | 已退役模型（雷电将军）的打分工具：模型与生成脚本已删（2026-09-27），留下作"按参考图实测地标逐项打分"的参考实现 |
 | 工作区 `.mcp/`（本目录之外） | **无头 MCP**：第三方校验 / 渲染 / 导出 / 编辑 `.bbmodel`，不需要 Blockbench 运行；`call_tool.py` 的 `Client` 可 import，用来让生成脚本**通过 MCP 授权**整个工程（金龙的做法） |
 
 > **2026-09-24 修复**：`preview_bbmodel.py` 的逐面 UV 采样条件原本写反了，导致预览图里

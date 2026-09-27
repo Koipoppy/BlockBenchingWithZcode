@@ -1,15 +1,7 @@
 # BlockBenchingWithZcode — Minecraft 风格 Blockbench 模型集
 
-| 模型 | 工程 | 一句话 |
-|---|---|---|
-| [霸王花盆栽](bawanghua_flower_pot/README.md) | `bawanghua_flower_pot/` | 原版花盆里种一棵 PvZ 风格霸王花 |
-| [肌肉苦力怕](muscle_creeper/README.md) | `muscle_creeper/` | 原版风格的重肌苦力怕：宽肩、粗臂、经典鬼脸 |
-| [精致小屋](cottage/README.md) | `cottage/` | 原版风格小屋：石基板墙、原木柱、整片斜板屋顶、烟囱灯笼花箱 |
-| [精致鸟居](torii/README.md) | `torii/` | 明神鸟居：朱漆内倾柱、反曲笠木、金拟宝珠、注连绳纸垂、台石小径 |
-| [三层宝塔](pagoda/README.md) | `pagoda/` | 石台上的三层白墙黑瓦佛塔，金色塔刹 |
-| [瓶中帆船](ship_in_bottle/README.md) | `ship_in_bottle/` | 半透明玻璃瓶里一艘全套帆装的小帆船 |
-| [荷枪实弹的美军士兵](us_soldier/README.md) | `us_soldier/` | 双手持 M4 斜挎胸前的现代美军步兵：姿态由二骨 IK 解算，用到组旋转 |
-| [金龙](golden_loong/README.md) | `golden_loong/` | 199 方块的中国龙：蛇形长身、鹿角长须、四爪火焰尾，姿态由导向曲线反解，附 3 秒游动循环；**首个用本机 MCP 授权（而非脚本直接写文件）的工程** |
+模型就是根目录下的各个文件夹：**一个模型一个文件夹，文件夹名 = 模型名**，每个模型的说明写在自己文件夹的 `README.md` 里。
+这里不再逐个登记模型（省得每加一个都要回来改一遍），要看清单直接看目录。
 
 共享工具：
 
@@ -27,7 +19,7 @@
 > （Blockbench 里的朝向一直是 README 约定的"从外侧看正立不镜像"），只有离线预览 PNG 受影响。
 > 噪点贴图看不出来，方向性贴图（苦力怕的鬼脸）看得出来。所有模型的预览图已用修好的渲染器重出。
 
-格式约定（所有模型通用，实测自 Blockbench 5.2.1 源码，详见[霸王花盆栽的文档](bawanghua_flower_pot/README.md)）：
+格式约定（所有模型通用，实测自 Blockbench 5.2.1 源码）：
 **Generic Model (free)** 格式、逐面 UV（`v` 从上往下、从外侧看正立不镜像）、朝向 -Z（北）为正面。
 
 工程格式版本：生成脚本写 `format_version 4.5`；**用 Blockbench 打开并保存过的工程会变成 5.0**
@@ -41,7 +33,7 @@
 
 ```
 <仓库根>
-├─ README.md            本文件：总索引
+├─ README.md            本文件：格式约定 + 共享工具说明
 ├─ tools/               共享脚本：各模型的一键生成 + 离线渲染器 + Bedrock 导出
 └─ <模型名>/
    ├─ <模型名>.bbmodel  Blockbench 工程（贴图 base64 内嵌，双击即看）

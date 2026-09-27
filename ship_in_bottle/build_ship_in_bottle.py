@@ -1,6 +1,6 @@
 """Build the 瓶中帆船 (ship in a bottle) as a Blockbench project.
 
-    python tools/build_ship_in_bottle.py
+    python ship_in_bottle/build_ship_in_bottle.py
 
 Writes ../ship_in_bottle/ship_in_bottle.bbmodel (texture embedded as a data URI) and
 ../ship_in_bottle/ship_in_bottle.png (the same texture, standalone).
@@ -40,7 +40,7 @@ import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(os.path.dirname(HERE), "ship_in_bottle")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL_NAME = "ship_in_bottle"
 

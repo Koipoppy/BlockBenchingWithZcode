@@ -1,6 +1,6 @@
 """Build the 肌肉苦力怕 (muscle creeper) as a Blockbench project.
 
-    python tools/build_muscle_creeper.py
+    python muscle_creeper/build_muscle_creeper.py
 
 Writes ../muscle_creeper/muscle_creeper.bbmodel (texture embedded as a data URI) and
 ../muscle_creeper/muscle_creeper.png (the same texture, standalone).
@@ -37,7 +37,7 @@ import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(os.path.dirname(HERE), "muscle_creeper")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL_NAME = "muscle_creeper"
 

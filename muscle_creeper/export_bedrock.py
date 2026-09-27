@@ -1,6 +1,6 @@
 """Export the muscle creeper to a Bedrock geometry file (.geo.json).
 
-    python tools/export_bedrock.py
+    python muscle_creeper/export_bedrock.py
 
 Writes ../muscle_creeper.geo.json (bones + cubes + per-face uv), ready to drop
 into a Bedrock resource pack as models/entity/muscle_creeper.geo.json with the
@@ -22,7 +22,7 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(os.path.dirname(HERE), "muscle_creeper")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL = os.path.join(OUT_DIR, "muscle_creeper.bbmodel")
 OUT = os.path.join(OUT_DIR, "muscle_creeper.geo.json")

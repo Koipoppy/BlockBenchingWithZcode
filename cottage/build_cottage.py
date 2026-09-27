@@ -1,6 +1,6 @@
 """Build the 精致小屋 (cozy cottage) as a Blockbench project.
 
-    python tools/build_cottage.py
+    python cottage/build_cottage.py
 
 Writes ../cottage/cottage.bbmodel (texture embedded as a data URI) and ../cottage/cottage.png
 (the same texture, standalone).
@@ -51,7 +51,7 @@ import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(os.path.dirname(HERE), "cottage")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL_NAME = "cottage"
 

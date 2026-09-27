@@ -1,6 +1,6 @@
 """Score a rendered .bbmodel against a reference render.
 
-    python tools/compare_reference.py --reference _ref/raiden_reference.png \
+    python compare_reference.py --reference _ref/raiden_reference.png \
         --model raiden_shogun/raiden_shogun.bbmodel --out _cmp
 
 What it does

@@ -1,17 +1,17 @@
 # BlockBenchingWithZcode — Minecraft 风格 Blockbench 模型集
 
-模型就是根目录下的各个文件夹：**一个模型一个文件夹，文件夹名 = 模型名**，每个模型的说明写在自己文件夹的 `README.md` 里。
+模型就是根目录下的各个文件夹：**一个模型一个文件夹，文件夹名 = 模型名**。每个模型文件夹里放：工程（`.bbmodel`）、贴图、预览图、以及它自己的生成脚本 `build_<模型名>.py`（重跑即可复现）。
 这里不再逐个登记模型（省得每加一个都要回来改一遍），要看清单直接看目录。
 
 共享工具：
 
 | 文件 | 说明 |
 |---|---|
-| `tools/preview_bbmodel.py` | 自建离线渲染器（零依赖、可脚本化），`--ground` 可调接触阴影半径 |
-| `tools/bbmodel_kit.py` | 格式变换代数（`rot_ZYX`/`euler_ZYX`/`walk_groups`）+ 三项结构自检（共面 z-fighting、姿态后接触、贴图拉伸） |
-| `tools/build_*.py` | 各模型的一键生成脚本（贴图 + 几何 + 写出 `.bbmodel`） |
-| `tools/export_bedrock.py` | 手写 Bedrock 几何导出（`compileCube`/`compileGroup` 规则实测自 Blockbench 源码），肌肉苦力怕那份 `.geo.json` 就是它导的 |
-| `tools/compare_model.py` | 已退役模型（雷电将军）的打分工具：模型与生成脚本已删（2026-09-27），留下作"按参考图实测地标逐项打分"的参考实现 |
+| `preview_bbmodel.py` | 自建离线渲染器（零依赖、可脚本化），`--ground` 可调接触阴影半径；任何 `.bbmodel` 都能渲 |
+| `bbmodel_kit.py` | 格式变换代数（`rot_ZYX`/`euler_ZYX`/`walk_groups`）+ 三项结构自检（共面 z-fighting、姿态后接触、贴图拉伸）；`golden_loong` 与 `us_soldier` 的生成脚本会 import 它 |
+| `compare_model.py`、`compare_reference.py` | 已退役的打分工具（对应模型已删，2026-09-27），留下作"按参考图实测地标逐项打分"的参考实现 |
+| `<模型名>/build_<模型名>.py` | 每个模型自己的一键生成脚本（贴图 + 几何 + 写出 `.bbmodel`），就放在该模型文件夹里 |
+| `<模型名>/export_bedrock.py` | 手写 Bedrock 几何导出（`compileCube`/`compileGroup` 规则实测自 Blockbench 源码），在 `muscle_creeper/` 里 |
 | 工作区 `.mcp/`（本目录之外） | **无头 MCP**：第三方校验 / 渲染 / 导出 / 编辑 `.bbmodel`，不需要 Blockbench 运行；`call_tool.py` 的 `Client` 可 import，用来让生成脚本**通过 MCP 授权**整个工程（金龙的做法） |
 
 > **2026-09-24 修复**：`preview_bbmodel.py` 的逐面 UV 采样条件原本写反了，导致预览图里
@@ -33,13 +33,14 @@
 
 ```
 <仓库根>
-├─ README.md            本文件：格式约定 + 共享工具说明
-├─ tools/               共享脚本：各模型的一键生成 + 离线渲染器 + Bedrock 导出
+├─ README.md            本文件：格式约定 + 共享脚本说明
+├─ preview_bbmodel.py   共享：离线渲染器
+├─ bbmodel_kit.py       共享：格式变换代数 + 结构自检
 └─ <模型名>/
    ├─ <模型名>.bbmodel  Blockbench 工程（贴图 base64 内嵌，双击即看）
    ├─ <模型名>.png      同一张贴图单独导出
    ├─ *_preview*.png    离线渲染的预览图
-   └─ README.md         该模型的设计说明与重新生成方法
+   └─ build_<模型名>.py 该模型的一键生成脚本（重跑即可复现）
 ```
 
-生成脚本（`tools/build_*.py`）的输出目录已指向各自模型文件夹，重新生成不会散落到根目录之外。
+每个模型的生成脚本输出目录就是它自己的文件夹，重跑不会散落到别处。

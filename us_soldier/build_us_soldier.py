@@ -1,7 +1,7 @@
 """Build 荷枪实弹的现代美军士兵 (a loaded-for-bear modern US soldier) as a
 Blockbench project.
 
-    python tools/build_us_soldier.py
+    python us_soldier/build_us_soldier.py
 
 Writes ../us_soldier/us_soldier.bbmodel (texture embedded as a data URI) and
 ../us_soldier/us_soldier.png (the same texture, standalone).
@@ -59,12 +59,12 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True          # keep __pycache__ out of the repo
-sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.dirname(HERE))   # 共享的 bbmodel_kit.py 在仓库根
 from bbmodel_kit import (FACES, V, unit, rot_ZYX, euler_ZYX, walk_groups,  # noqa: E402
                          coplanar_conflicts, posed_contacts, face_size,
                          stretch_report)
 
-OUT_DIR = os.path.join(os.path.dirname(HERE), "us_soldier")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL_NAME = "us_soldier"
 

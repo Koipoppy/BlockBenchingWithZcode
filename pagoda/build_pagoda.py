@@ -1,6 +1,6 @@
 """Build the 佛塔 (Buddhist pagoda) model as a Blockbench project.
 
-    python tools/build_pagoda.py
+    python pagoda/build_pagoda.py
 
 Writes ../pagoda/pagoda.bbmodel (texture embedded as a data URI) and ../pagoda/pagoda.png
 (the same texture, standalone, for a resource pack).
@@ -36,7 +36,7 @@ import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(os.path.dirname(HERE), "pagoda")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL_NAME = "pagoda"
 

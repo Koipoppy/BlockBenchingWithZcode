@@ -1,7 +1,7 @@
 """Build 金龙 (a golden Chinese loong) as a Blockbench project -- authored through
 the local blockbench-headless MCP server rather than by writing the .bbmodel by hand.
 
-    python tools/build_golden_loong.py            # build, write, validate, render
+    python golden_loong/build_golden_loong.py            # build, write, validate, render
 
 Writes ../golden_loong/golden_loong.bbmodel (both textures embedded), the same
 two textures as standalone PNGs, and the offline previews.
@@ -45,14 +45,14 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROPERTY = os.path.dirname(HERE)
 sys.dont_write_bytecode = True
-sys.path.insert(0, HERE)
+sys.path.insert(0, PROPERTY)          # 共享的 bbmodel_kit.py 在仓库根
 sys.path.insert(0, os.path.join(os.path.dirname(PROPERTY), ".mcp"))
 
 from bbmodel_kit import (FACES, V, unit, rot_ZYX, euler_ZYX, walk_groups,  # noqa: E402
                          face_size)
 from call_tool import Client  # noqa: E402
 
-OUT_DIR = os.path.join(PROPERTY, "golden_loong")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL = "golden_loong"
 RES = 1024

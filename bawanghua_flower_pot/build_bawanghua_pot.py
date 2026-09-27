@@ -1,6 +1,6 @@
 """Build the 霸王花 (Bawanghua) flower-pot model as a Blockbench project.
 
-    python tools/build_bawanghua_pot.py
+    python bawanghua_flower_pot/build_bawanghua_pot.py
 
 Writes ../bawanghua_flower_pot/bawanghua_flower_pot.bbmodel (texture embedded as a data URI) and
 ../bawanghua_flower_pot/bawanghua_flower_pot.png (the same texture, standalone, for a resource pack).
@@ -37,7 +37,7 @@ import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(os.path.dirname(HERE), "bawanghua_flower_pot")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL_NAME = "bawanghua_flower_pot"
 

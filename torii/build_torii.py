@@ -1,6 +1,6 @@
 """Build the 精致鸟居 (shrine torii gate) as a Blockbench project.
 
-    python tools/build_torii.py
+    python torii/build_torii.py
 
 Writes ../torii/torii.bbmodel (texture embedded as a data URI) and ../torii/torii.png
 (the same texture, standalone).
@@ -59,7 +59,7 @@ import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(os.path.dirname(HERE), "torii")
+OUT_DIR = HERE
 os.makedirs(OUT_DIR, exist_ok=True)
 MODEL_NAME = "torii"
 

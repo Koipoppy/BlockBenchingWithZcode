@@ -28,7 +28,7 @@ from PIL import Image, ImageDraw
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))   # 上一级：工作区（放 .mcp 的那层）
 PROP = os.path.dirname(HERE)                    # 本仓库根 = 模型目录
-OUT_DIR = os.path.join(PROP, "hell_dragon")
+OUT_DIR = HERE
 MODEL = os.path.join(OUT_DIR, "hell_dragon.bbmodel")
 TEX_PNG = os.path.join(OUT_DIR, "hell_dragon.png")
 TEX_NAME = "hell_dragon"

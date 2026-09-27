@@ -25,6 +25,29 @@
 （组的 origin/rotation 移到顶层 `groups` 表，outliner 只剩 uuid 引用），解析脚本两边都要能读。实测 4.5→5.0 保存只改格式、不改几何（渲染逐像素一致），
 但在 GUI 里的修改会被重跑生成脚本覆盖。
 
+> **2026-09-27 补充几条实测**（`shirt_skirt_girl` 换装时踩到的，加方块到别人的工程上尤其要注意）：
+>
+> 1. **往工程里加方块时，每个方块自己的 `box_uv` 要为 `false`**，否则 Blockbench / three-blockbench
+>    会**忽略逐面 `uv`**，改按 `uv_offset` 重算盒式 UV（`three-blockbench/dist/geometry/cube.js:43`：
+>    `element.box_uv === true ? boxUV(...) : face.uv`）。我们的 `uv_offset` 是 `[0,0]`，于是一整片衣服
+>    都采到贴图左上角那片白 —— 而离线渲染器 `tools/preview_bbmodel.py` 只读逐面 uv，**看不出来**。
+>    基底那些 `box_uv: true` 的方块没事，是因为它们的 `uv_offset` 和逐面 uv 本来就一致。
+> 2. **只在 outliner 节点上内联 `origin`/`rotation`（4.10/4.5 布局）、不写顶层 `groups` 表，会被
+>    只认 5.0 的读取器当成"没有组变换"**：手臂不张、裙子的 16 片全部塌回 rest 位置
+>    （three-blockbench 只读 `document.groups`）。所以给别人的工程加东西时，最后照样补一份顶层
+>    `groups` 表；Blockbench 按 uuid 合并，不会重复。
+> 3. **bedrock 实体格式是单贴图（`single_texture`）：给现有工程加的第二张贴图在 GUI 里会被忽略。**
+>    面上的 `"texture": 1` 在 Blockbench 里会回落成 0，于是新加的部件去采基底那张图 —— 用户看到的是
+>    "裙子变成粉色麻点、身体从裙子里透出来"。**实测：**
+>    * Blockbench 5.2.1：裙片贴图错位（用户截图）；
+>    * 无头 MCP 的 three-blockbench：正常 —— 它按逐面贴图索引取图，**所以这类 bug 只有 GUI 看得见**；
+>    * 结论：加装到别人工程上时，衣服**画进基底贴图没人用的区域**（基底 uv 只到 271，x≥276 整条是空的），
+>      全模型只留 texture 0；`shirt_skirt_girl` 的生成脚本就是这么做的，并带两条闸：
+>      「所有面只引用 texture 0」和「衣服面采样区里不能有透明像素」。
+> 4. 顺带一条渲染器行为：`tools/preview_bbmodel.py` 把 uv 矩形按 `[u1..u2]` **含右端点**采样，
+>    所以自画贴图时 rect 四周最好补一圈 clamp 到边缘的外框；只要那圈里有一个透明像素，整张面就会被
+>    判成半透明（不写深度）→ 身体会从衣服里透出来。`shirt_skirt_girl` 第一版就是右下角那一个像素。
+
 ## 目录结构
 
 **本仓库根目录就是模型工作目录**（2026-09-27 把原来那层 `property/` 拍平到了根）：

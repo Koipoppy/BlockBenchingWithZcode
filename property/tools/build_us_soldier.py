@@ -628,7 +628,7 @@ ELBOW_REST_R, ELBOW_REST_L = V(6.8, 17.5, 0), V(-6.8, 17.5, 0)
 FIST_REST_R, FIST_REST_L = V(6.8, 11.5, 0), V(-6.8, 11.5, 0)
 A_UPPER, B_FORE = 5.0, 6.0
 
-GRIP = V(2.5, 15.6, -5.3)                 # right fist = pistol grip
+GRIP = V(2.6, 15.4, -4.8)                 # right fist = pistol grip
 # muzzle up and to his left at about 41 deg: the muzzle clears the head and
 # ends beside the left shoulder, so neither the face nor the optic is hidden
 MUZZLE_DIR = unit(V(-6.0, 5.4, -1.3))
@@ -706,7 +706,7 @@ def build_tree():
         cube("earcup_r", (4, 26, -1.5), (5, 29, 1.5), FM(all="rubber")),
         cube("earcup_l", (-5, 26, -1.5), (-4, 29, 1.5), FM(all="rubber")),
         cube("mic_arm", (-4.9, 26.5, -4.3), (-4.1, 27.3, -1.4), FM(all="rubber")),
-        cube("mic_tip", (-4.1, 26.2, -4.9), (-3.3, 27.0, -4.2), FM(all="poly")),
+        cube("mic_tip", (-4.4, 26.2, -4.9), (-3.6, 27.0, -4.2), FM(all="poly")),
     ])
 
     # --- arms: upper arm group + forearm child carrying the fist ------------
@@ -753,8 +753,8 @@ def build_tree():
         # pouches, these are what still reads from the front
         cube("sidepouch_r", (4.6, 15.5, 2), (5.6, 18.5, 5), FM(all="pouch")),
         cube("sidepouch_l", (-5.6, 15.5, 2), (-4.6, 18.5, 5), FM(all="pouch")),
-        cube("strap_r", (2.5, 22, -3.5), (4.5, 24, 3.5), FM(all="molle")),
-        cube("strap_l", (-4.5, 22, -3.5), (-2.5, 24, 3.5), FM(all="molle")),
+        cube("strap_r", (2.5, 22.5, -3.5), (4.5, 24.5, 3.5), FM(all="molle")),
+        cube("strap_l", (-4.5, 22.5, -3.5), (-2.5, 24.5, 3.5), FM(all="molle")),
         # three rifle-mag pouches
         cube("magpouch_r", (2, 17.5, -4.6), (4, 20.5, -3.5), FM(all="pouch")),
         cube("magpouch_c", (-1, 17.5, -4.6), (1, 20.5, -3.5), FM(all="pouch")),
@@ -901,6 +901,7 @@ def check_painted(atlas: Atlas) -> list[str]:
 # --- writer ----------------------------------------------------------------
 def write_model(path: str, tree, atlas: Atlas, texture: Image.Image) -> int:
     elements: list[dict] = []
+    groups: list[dict] = []          # 5.0-style table, see the note below
 
     def emit_cube(c: dict) -> str:
         el = {
@@ -922,14 +923,30 @@ def write_model(path: str, tree, atlas: Atlas, texture: Image.Image) -> int:
         return el["uuid"]
 
     def walk(node: dict) -> dict:
+        """A group is written twice on purpose: inline in the outliner node
+        (the 4.5 "legacy group" path -- name/origin/rotation on the node, which
+        is what Blockbench 5.2.1 itself reads) AND in a top-level `groups` table
+        (the 5.0 layout that third-party readers such as bb-render look at).
+        Blockbench merges the two by uuid, so there is no duplication, and a
+        renderer that only knows 5.0 still gets the pose. Measured, not assumed:
+        the same file without the `groups` table rendered in its rest pose in
+        bb-render while Blockbench's own validator saw the rotated bounds.
+        """
         children = [emit_cube(c) for c in node.get("cubes") or []]
         children += [walk(child) for child in node.get("children") or []]
+        gu = str(uuid.uuid4())
         out = {"name": node["name"],
                "origin": [float(v) for v in node["origin"]],
-               "uuid": str(uuid.uuid4()),
+               "uuid": gu,
                "children": children}
+        table = {"name": node["name"],
+                 "origin": [float(v) for v in node["origin"]],
+                 "uuid": gu,
+                 "children": [c if isinstance(c, str) else c["uuid"] for c in children]}
         if node.get("rotation"):
             out["rotation"] = [float(v) for v in node["rotation"]]
+            table["rotation"] = [float(v) for v in node["rotation"]]
+        groups.append(table)
         return out
 
     outliner = [walk(tree)]
@@ -943,6 +960,7 @@ def write_model(path: str, tree, atlas: Atlas, texture: Image.Image) -> int:
         "resolution": {"width": atlas.size, "height": atlas.size},
         "elements": elements,
         "outliner": outliner,
+        "groups": groups,
         "textures": [{
             "path": "", "name": f"{MODEL_NAME}.png", "folder": "entity",
             "namespace": "", "id": "0", "particle": False,
@@ -964,7 +982,7 @@ def main() -> int:
 
     bad = coplanar_conflicts(tree)
     if bad:
-        for pi, pj, axis, tag, coord, ov in bad[:20]:
+        for pi, pj, axis, tag, coord in bad[:20]:
             print(f"  z-fight risk: {pi} / {pj} on {axis}={coord:.3f} ({tag})")
         raise SystemExit(f"{len(bad)} coplanar same-facing overlaps")
 

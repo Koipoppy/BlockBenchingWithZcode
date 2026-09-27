@@ -42,6 +42,23 @@ CLASSES = ("white", "dark", "purple", "gold", "skin", "maroon")
 
 
 # --- model measurement ------------------------------------------------------
+def mesh_bbox(el: dict) -> dict:
+    """Meshes have no from/to: give them the vertices' bounding box (so height
+    landmarks work) plus a ring table (y, min x, max x) for width interpolation."""
+    out = dict(el)
+    if out.get("type") == "mesh" and "vertices" in out and "from" not in out:
+        pts = np.array(list(out["vertices"].values()), dtype=float)
+        out["from"] = pts.min(axis=0).tolist()
+        out["to"] = pts.max(axis=0).tolist()
+        rings = {}
+        for p in pts:
+            r = rings.setdefault(round(float(p[1]), 4), [1e9, -1e9])
+            r[0] = min(r[0], float(p[0]))
+            r[1] = max(r[1], float(p[0]))
+        out["_mesh_rings"] = [[y, r[0], r[1]] for y, r in sorted(rings.items())]
+    return out
+
+
 def load_cubes(doc: dict) -> list[dict]:
     """Cubes with their group name attached (groups come from the outliner)."""
     elements = {el["uuid"]: el for el in doc.get("elements") or []}
@@ -54,14 +71,14 @@ def load_cubes(doc: dict) -> list[dict]:
         for child in node.get("children") or []:
             if isinstance(child, dict):
                 if child.get("uuid") in elements:
-                    el = dict(elements[child["uuid"]])
+                    el = mesh_bbox(elements[child["uuid"]])
                     el["_group"] = name
                     el["_groups"] = chain + [name]
                     out.append(el)
                 else:
                     walk(child, name, chain + [name])
             elif child in elements:
-                el = dict(elements[child])
+                el = mesh_bbox(elements[child])
                 el["_group"] = name
                 el["_groups"] = chain + [name]
                 out.append(el)
@@ -81,14 +98,34 @@ def model_features(cubes: list[dict]) -> dict:
     h = top - bottom
     f = {"h": h, "top": top, "bottom": bottom}
 
+    def x_extent(c: dict, y: float):
+        """x extent of one element at height y, or None if it does not reach y.
+
+        Cubes are boxes, but a mesh (a tapered prism) has to be interpolated
+        between its rings, otherwise its whole bounding box would be measured at
+        every height and the taper would be invisible."""
+        if c.get("_mesh_rings"):
+            rings = c["_mesh_rings"]
+            if y < rings[0][0] - 1e-6 or y > rings[-1][0] + 1e-6:
+                return None
+            for a, b in zip(rings, rings[1:]):
+                if a[0] <= y <= b[0]:
+                    t = 0.0 if b[0] == a[0] else (y - a[0]) / (b[0] - a[0])
+                    return (a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2]))
+            return (rings[-1][1], rings[-1][2])
+        if c["to"][1] < y - 1e-6 or c["from"][1] > y + 1e-6:
+            return None
+        return (c["from"][0], c["to"][0])
+
     def span(cs: list[dict], y0: float, y1: float) -> float:
-        """Widest x extent of the cubes that overlap the band [y0, y1]."""
+        """Widest x extent of the elements reaching the band [y0, y1]."""
         lo, hi = None, None
         for c in cs:
-            if c["to"][1] < y0 or c["from"][1] > y1:
+            e = x_extent(c, (y0 + y1) / 2.0)
+            if e is None:
                 continue
-            lo = c["from"][0] if lo is None else min(lo, c["from"][0])
-            hi = c["to"][0] if hi is None else max(hi, c["to"][0])
+            lo = e[0] if lo is None else min(lo, e[0])
+            hi = e[1] if hi is None else max(hi, e[1])
         return 0.0 if lo is None else float(hi - lo)
 
     arms = [c for c in cubes if "_arm" in " ".join(c["_groups"])]
@@ -284,7 +321,8 @@ def main() -> int:
 
     if args.render is None:
         import preview_bbmodel as P
-        ys = [v for el in doc["elements"] for v in (el["from"][1], el["to"][1])]
+        els = [mesh_bbox(el) for el in doc["elements"]]
+        ys = [v for el in els for v in (el["from"][1], el["to"][1])]
         mid, span = (min(ys) + max(ys)) / 2, max(1.0, max(ys) - min(ys))
         png = os.path.join(args.out, "render_front.png")
         P.render(doc, P.decode_textures(doc), size=900, eye=(0, mid, -(span * 1.9 + 20)),

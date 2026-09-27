@@ -8,8 +8,8 @@ Blockbench 工程：一个陶土花盆，种着《植物大战僵尸》风格的
 | `bawanghua_flower_pot.png` | 同一张贴图，单独导出，方便改图或放进资源包 |
 | `preview.png` | 预览图，相机位置 = Blockbench 打开工程时的默认视角 |
 | `preview_front.png` | 预览图，正面 3/4 视角 |
-| `tools/build_bawanghua_pot.py` | 生成贴图 + 几何 + 写出 `.bbmodel` 的脚本 |
-| `tools/preview_bbmodel.py` | 离线渲染任意 `.bbmodel`（Blockbench 没有可用的无头 CLI） |
+| `../scripts/build_bawanghua_pot.py` | 生成贴图 + 几何 + 写出 `.bbmodel` 的脚本 |
+| `../scripts/preview_bbmodel.py` | 自建离线渲染器（零依赖、可脚本化）；第三方对照用无头 MCP，见 [`../references/headless-mcp.md`](../references/headless-mcp.md) |
 
 ## 打开
 
@@ -26,7 +26,8 @@ Blockbench 工程：一个陶土花盆，种着《植物大战僵尸》风格的
 
 ## 设计说明（重要）
 
-我没能联网核对霸王花在游戏里的原始造型（fandom／萌娘百科／百科都取不到：404 / 403 / 超时），
+当时取不到霸王花在游戏里的原始造型图（fandom／萌娘百科／百科直连 404 / 403 / 超时；
+后来发现 WebSearch 的文本摘要可用，但图仍然拿不到），
 所以这个模型是按 PvZ 植物的通用美术语言自己设计的，名称取"霸王"之意：
 
 - **花头**：粗壮的深红方块头，正面是一张有眼白+瞳孔的脸，下面是一张带獠牙的大嘴（白色牙齿交错咬合、粉色舌头、暗红口腔）；
@@ -41,7 +42,8 @@ Blockbench 工程：一个陶土花盆，种着《植物大战僵尸》风格的
 ## 关于格式的几个坑（已从 Blockbench 源码核实）
 
 这些约定如果搞错，贴图会静默镜像或错位，所以是**实测**出来的，不是猜的
-（源码在 `resources/app.asar` → `dist/bundle.js.map`）：
+（源码在 `resources/app.asar` → `dist/bundle.js.map`；完整对照表与工程格式版本见
+[`../references/bbmodel-format.md`](../references/bbmodel-format.md)）：
 
 1. **UV 方向**（`js/util/three_custom.js` 的 `setShape` + `js/outliner/types/cube.js` 的 `updateUV`）：
    从外侧看一个面时，UV 矩形是**正立且不镜像**的；`uv = [u1, v1, u2, v2]` 单位是贴图像素，
@@ -55,8 +57,8 @@ Blockbench 工程：一个陶土花盆，种着《植物大战僵尸》风格的
 ## 重新生成 / 改动
 
 ```bash
-python tools/build_bawanghua_pot.py        # 重新生成 bbmodel + png
-python tools/preview_bbmodel.py bawanghua_flower_pot.bbmodel preview.png --azimuth 225 --elevation 19.47 --distance 60 --target 0 12 0
+python ../scripts/build_bawanghua_pot.py        # 重新生成 bbmodel + png
+python ../scripts/preview_bbmodel.py bawanghua_flower_pot.bbmodel preview.png --azimuth 225 --elevation 19.47 --distance 60 --target 0 12 0
 ```
 
 要改的东西都在 `build_bawanghua_pot.py` 里：
@@ -74,5 +76,5 @@ python tools/preview_bbmodel.py bawanghua_flower_pot.bbmodel preview.png --azimu
 - 这是**建模源文件**，不是能直接丢进资源包的方块模型：要进游戏得在 Blockbench 里另行导出
   （Bedrock geometry／Java block model 都可以，但 Java 方块模型要求旋转是 22.5° 的整数倍，花瓣的 16° 会被警告/丢弃）。
 - 贴图 64×64，整模型共用一张，没有做发光／透明通道。
-- 预览图是用 `tools/preview_bbmodel.py` 离线渲染的（z-buffer + MC 的面光照系数：顶 1.0、南北 0.8、东西 0.6、底 0.5），
-  和 Blockbench 视口的观感接近但并不完全相同。
+- 预览图是用 `../scripts/preview_bbmodel.py` 离线渲染的（z-buffer + MC 的面光照系数：顶 1.0、南北 0.8、东西 0.6、底 0.5），
+  和 Blockbench 视口的观感接近但并不完全相同；要第三方复核就用无头 MCP 的 `bbmodel_render`。

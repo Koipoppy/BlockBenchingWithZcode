@@ -118,20 +118,57 @@ def collect_quads(doc):
 
     def emit(element, world):
         inflate = float(element.get("inflate") or 0.0)
-        low = np.array(element["from"], dtype=float) - inflate
-        high = np.array(element["to"], dtype=float) + inflate
         local = node_matrix(element.get("origin") or (0, 0, 0), element.get("rotation"))
         m = world @ local
         rot = m[:3, :3]
+
+        def to_world(p):
+            return rot @ np.array(p, dtype=float) + m[:3, 3]
+
+        if element.get("type") == "mesh" or (
+                "vertices" in element and "faces" in element and "from" not in element):
+            # Mesh element: faces carry their own vertex list and per-vertex uv.
+            # The triangle rasteriser expects the cube convention -- corners in
+            # "z order" (u-min/v-min, u-max/v-min, u-min/v-max, u-max/v-max) --
+            # so sort each quad by its uv and take the outward normal from the
+            # face name, which is also what culling uses.
+            axis = {"north": (0, 0, -1), "south": (0, 0, 1), "east": (1, 0, 0),
+                    "west": (-1, 0, 0), "up": (0, 1, 0), "down": (0, -1, 0)}
+            verts_by_key = {str(k): np.array(v, dtype=float)
+                            for k, v in (element.get("vertices") or {}).items()}
+            for face, data in (element.get("faces") or {}).items():
+                keys = [str(k) for k in (data.get("vertices") or [])]
+                if len(keys) < 3 or any(k not in verts_by_key for k in keys):
+                    continue
+                pts = np.array([to_world(verts_by_key[k]) for k in keys])
+                fuv = data.get("uv") or {}
+                uvs = np.array([(float(fuv[k][0]) / tex_w, float(fuv[k][1]) / tex_h)
+                                if k in fuv else (0.0, 0.0) for k in keys])
+                if len(keys) == 4:
+                    order = sorted(range(4), key=lambda i: (round(float(uvs[i][1]), 4),
+                                                            round(float(uvs[i][0]), 4)))
+                    pts, uvs = pts[order], uvs[order]
+                    normal = rot @ np.array(axis.get(face.rstrip("0123456789"),
+                                                     (0, 1, 0)), dtype=float)
+                    quads.append({"verts": pts, "uvs": uvs, "normal": normal,
+                                  "texture": int(data.get("texture") or 0)})
+                else:                       # triangle: pad to a degenerate quad
+                    n = np.cross(pts[1] - pts[0], pts[2] - pts[0])
+                    nn = np.linalg.norm(n)
+                    quads.append({"verts": np.array([pts[0], pts[1], pts[2], pts[2]]),
+                                  "uvs": np.array([uvs[0], uvs[1], uvs[2], uvs[2]]),
+                                  "normal": n / (nn or 1.0),
+                                  "texture": int(data.get("texture") or 0)})
+            return
+
+        low = np.array(element["from"], dtype=float) - inflate
+        high = np.array(element["to"], dtype=float) + inflate
         corner = {
             (0, 0, 0): (low[0], low[1], low[2]), (1, 0, 0): (high[0], low[1], low[2]),
             (0, 1, 0): (low[0], high[1], low[2]), (1, 1, 0): (high[0], high[1], low[2]),
             (0, 0, 1): (low[0], low[1], high[2]), (1, 0, 1): (high[0], low[1], high[2]),
             (0, 1, 1): (low[0], high[1], high[2]), (1, 1, 1): (high[0], high[1], high[2]),
         }
-
-        def to_world(p):
-            return rot @ np.array(p, dtype=float) + m[:3, 3]
 
         for face in FACE_ORDER:
             data = (element.get("faces") or {}).get(face)

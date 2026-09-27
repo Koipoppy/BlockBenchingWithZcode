@@ -84,6 +84,52 @@ python call_tool.py bbmodel_validate '{"file": "cottage/cottage.bbmodel"}'
 让有意为之的警告静下来：`free_elements`（声明这些件就是独立件）、`interpenetration_depth`
 （允许的穿插量）、`mirror_x`（对称轴）。`self_test` 会证明每个门仍能检出它负责的缺陷。
 
+### 两个门有"用不上"的情形，别被它们带偏
+
+- **`mirror` 比的是世界坐标盒子**（`golden_loong` 实测）：姿态一旦不是平面姿态——
+  比如躯干在 X 上走 S 形——左右件在世界空间里就**本来就不**关于 x=0 对称，
+  这个门会把几十个零件全部报出来，而且 `self_test` 会自己标 `"discriminates": false`
+  （注入一个偏移缺陷后违规数一模一样，说明它在这个模型上没有分辨力）。
+  这时该守的不变量是**未姿态空间**里的镜像关系，自己在生成脚本里查：把每个 `_L` 与 `_R` 配对，
+  比较 `from/to` 逐轴（x 取负并交换两端），旋转**比较矩阵而不是欧拉三元组**
+  （`ry=180` 与 `ry=-180` 是同一个旋转，拿三元组比会误报——`golden_loong` 的两把鳍就是这么被抓出来的假阳性）。
+- **`interpenetration` 用 `material_key` 豁免同料重叠**：蛇形身体那种"相邻体节故意重叠
+  1~2 单位、免得弯曲时开缝"的作法，靠 `material_key: "color"` + 给同料方块同一个
+  marker 色号静音；不同料（鬃扎进颅骨、须穿进吻部）仍然会被报出来，这才有用。
+  实测 `add_cube` 不传 `color` 时服务端会随机挑一个——**必须显式传**，否则同料判定失效。
+
+## 用 MCP 授出一个完整工程（`golden_loong` 的做法，2026-09-25）
+
+以前所有模型都是脚本直接拼 `.bbmodel` JSON（4.5 格式）。金龙改成**让服务端来写**：
+
+```python
+sys.path.insert(0, "../.mcp")
+from call_tool import Client                 # 极简 stdio 客户端，可直接 import
+c = Client(timeout=900)
+c.call("bbmodel_create", {"file": path, "format": "free", "overwrite": True,
+                          "resolution": {"width": 1024, "height": 1024}})
+c.call("bbmodel_add_texture", {"file": path, "image": "…_body.png"})
+c.call("bbmodel_add_texture", {"file": path, "image": "…_glow.png",
+                               "render_mode": "emissive"})     # 发光贴图 = 第二张纹理
+c.call("bbmodel_edit", {"file": path, "operations": groups + cubes})   # 一次原子批次
+c.call("bbmodel_edit", {"file": path, "operations": anim_ops})
+```
+
+实测要点：
+
+- **`bbmodel_edit` 一次最多 500 个 op**（工具 schema 的 `maxItems`）。41 组 + 199 方块 = 240 op
+  一次过；1×`add_animation` + 546×`set_keyframe` 要拆两批（脚本里 `send_ops` 按 400 分批）。
+- **纹理索引 = 加入顺序**：面的 `texture` 字段是纯索引，所以**先加纹理再加方块**，
+  免得中间态引用不存在的索引。
+- **`set_keyframe` 的旋转值原样存储**（探针实测：传 `[30,0,0]`，文件里就是 `"x":"30"`），
+  没有 4.10 导出那种 x/y 取负；组 `rotation` 与关键帧 `rotation` **同一套约定**，
+  所以动画帧可以直接写成"基准姿态 + 波动"，不用换算。
+- **落盘就是 5.0**：组属性写进顶层 `groups` 表、outliner 只剩 uuid 引用（见 bbmodel-format.md §11），
+  数字能取整就写整数。`preview_bbmodel.py` 两边都能读，不用改。
+- 服务端做 **revision 校验**：读到的 `revision` 可用 `expected_revision` 回传，别人改过就拒写；
+  生成脚本反复跑没问题（每次 `bbmodel_create … overwrite: true` 重开）。
+- 产物带 `ai_used` 标记；`.bbmodel` 体积 ≈ 两张 PNG 的 base64（金龙 1024²×2 ≈ 640 KB）。
+
 ## 与自建工具的对照结论（2026-09-25）
 
 - **渲染**：宝塔同视角对比——**几何与朝向完全一致**，只有灯光/背景不同（它是深色背景 + 软光照）。

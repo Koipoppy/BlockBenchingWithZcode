@@ -7,10 +7,9 @@
 | [精致小屋](cottage/README.md) | `cottage/` | 原版风格小屋：石基板墙、原木柱、整片斜板屋顶、烟囱灯笼花箱 |
 | [精致鸟居](torii/README.md) | `torii/` | 明神鸟居：朱漆内倾柱、反曲笠木、金拟宝珠、注连绳纸垂、台石小径 |
 | [三层宝塔](pagoda/README.md) | `pagoda/` | 石台上的三层白墙黑瓦佛塔，金色塔刹 |
-| [雷电将军](raiden_shogun/README.md) | `raiden_shogun/` | 7 头身女性体型的雷电将军：84 方块、白和服紫纹金饰、深紫宽袖、长辫、高跟靴 |
 | [瓶中帆船](ship_in_bottle/README.md) | `ship_in_bottle/` | 半透明玻璃瓶里一艘全套帆装的小帆船 |
-| [M1A2 艾布拉姆斯](m1a2_abrams/README.md) | `m1a2_abrams/` | 沙漠涂装 M1A2 主战坦克：楔形炮塔、120mm 滑膛炮、7 轮侧裙板 |
 | [荷枪实弹的美军士兵](us_soldier/README.md) | `us_soldier/` | 双手持 M4 斜挎胸前的现代美军步兵：姿态由二骨 IK 解算，用到组旋转 |
+| [金龙](golden_loong/README.md) | `golden_loong/` | 199 方块的中国龙：蛇形长身、鹿角长须、四爪火焰尾，姿态由导向曲线反解，附 3 秒游动循环；**首个用本机 MCP 授权（而非脚本直接写文件）的工程** |
 
 共享工具：
 
@@ -19,7 +18,9 @@
 | `tools/preview_bbmodel.py` | 自建离线渲染器（零依赖、可脚本化），`--ground` 可调接触阴影半径 |
 | `tools/bbmodel_kit.py` | 格式变换代数（`rot_ZYX`/`euler_ZYX`/`walk_groups`）+ 三项结构自检（共面 z-fighting、姿态后接触、贴图拉伸） |
 | `tools/build_*.py` | 各模型的一键生成脚本（贴图 + 几何 + 写出 `.bbmodel`） |
-| 工作区 `.mcp/`（本目录之外） | **无头 MCP**：第三方校验 / 渲染 / 导出 / 编辑 `.bbmodel`，不需要 Blockbench 运行。用法与对照结论见 `skill/references/headless-mcp.md` |
+| `tools/export_bedrock.py` | 手写 Bedrock 几何导出（`compileCube`/`compileGroup` 规则实测自 Blockbench 源码），肌肉苦力怕那份 `.geo.json` 就是它导的 |
+| `tools/build_raiden_shogun.py`、`tools/build_m1a2_abrams.py`、`tools/compare_model.py` | **已退役模型**（雷电将军 / M1A2）的生成器与打分工具：模型文件夹已删（2026-09-27），脚本留下作参考实现——`prism()` 棱台 mesh 生成器、以及"按参考图实测地标逐项打分"的做法 |
+| 工作区 `.mcp/`（本目录之外） | **无头 MCP**：第三方校验 / 渲染 / 导出 / 编辑 `.bbmodel`，不需要 Blockbench 运行。用法与对照结论见 `skill/references/headless-mcp.md`；`call_tool.py` 的 `Client` 可 import，用来让生成脚本**通过 MCP 授权**整个工程（金龙的做法） |
 
 > **2026-09-24 修复**：`preview_bbmodel.py` 的逐面 UV 采样条件原本写反了，导致预览图里
 > 每个面都被渲染成 180° 旋转（`v` 轴上下颠倒 + 左右镜像）。`bbmodel` 工程本身从来没受过影响

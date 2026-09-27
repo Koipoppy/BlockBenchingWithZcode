@@ -208,6 +208,9 @@ PACKED_RECTS = [
     ("hand", 2, 2),
     ("sleeve", 4, 5), ("sleeve_lo", 4, 5), ("sleeve_up", 4, 4), ("sleeve_down", 4, 4),
     ("sleeve_cuff", 4, 1), ("band", 4, 1), ("band_flat", 4, 4),
+    ("legging", 5, 14), ("legging_out", 5, 14), ("legging_top", 5, 5),
+    ("arm_mesh", 3, 10), ("arm_mesh_out", 3, 10), ("sleeve_mesh", 5, 8),
+    ("boot_mesh", 4, 8), ("boot_mesh_out", 4, 8),
     ("thigh_up", 4, 7), ("thigh_up_out", 4, 7), ("thigh_up_flat", 4, 4),
     ("thigh_lo", 4, 4), ("thigh_lo_out", 4, 4), ("thigh_lo_flat", 4, 4),
     ("knee", 4, 3), ("knee_out", 4, 3), ("knee_flat", 4, 4),
@@ -260,26 +263,28 @@ def hairfill(cv, r, rng):
 
 
 def paint_face(cv, r):
-    """10x11 face: fringe shadow, brows, 3-row violet eyes with whites and a
-    lash line, nose, mouth, blush. Rows 0..4 hide under the bangs plate."""
+    """10x11 face. The head prism's rings distribute these rows by height: the
+    crown band covers rows 0..1, the eye-line band 1..3, the cheeks band 3..7
+    (so the eyes land at the widest part of the face), the jaw 7..9 and the chin
+    9..11 -- brows on row 3, eyes across rows 4..6, nose 8, mouth 9."""
     f = at(cv, r)
     f[:] = (*SKIN[0], 255)
     f[:, 0] = (*SKIN[1], 255)
     f[:, 9] = (*SKIN[1], 255)
     f[10, :] = (*SKIN[1], 255)
-    f[0:5, :] = (*HAIR[1], 255)                     # under the bangs plate
-    f[2, 2] = (*HAIR[2], 255); f[3, 6] = (*HAIR[2], 255)
+    f[0:3, :] = (*HAIR[1], 255)                     # under the bangs plate
+    f[1, 2] = (*HAIR[2], 255); f[2, 6] = (*HAIR[2], 255)
     for cx in (2, 3, 6, 7):
-        f[5, cx] = (*HAIR[3], 255)                  # brows
+        f[3, cx] = (*HAIR[3], 255)                  # brows
     for cx in (1, 2, 3, 6, 7, 8):
-        f[6, cx] = (*EYE_D, 255)                    # upper lash
-    f[7, 1] = (*EYE_W, 255); f[7, 2] = (*EYE, 255); f[7, 3] = (*EYE_D, 255)
-    f[7, 6] = (*EYE_D, 255); f[7, 7] = (*EYE, 255); f[7, 8] = (*EYE_W, 255)
-    f[8, 1] = (*EYE_HI, 255); f[8, 2] = (*EYE, 255); f[8, 3] = (*EYE, 255)
-    f[8, 6] = (*EYE, 255); f[8, 7] = (*EYE, 255); f[8, 8] = (*EYE_HI, 255)
+        f[4, cx] = (*EYE_D, 255)                    # upper lash
+    f[5, 1] = (*EYE_W, 255); f[5, 2] = (*EYE, 255); f[5, 3] = (*EYE_D, 255)
+    f[5, 6] = (*EYE_D, 255); f[5, 7] = (*EYE, 255); f[5, 8] = (*EYE_W, 255)
+    f[6, 1] = (*EYE_HI, 255); f[6, 2] = (*EYE, 255); f[6, 3] = (*EYE, 255)
+    f[6, 6] = (*EYE, 255); f[6, 7] = (*EYE, 255); f[6, 8] = (*EYE_HI, 255)
+    f[8, 4] = (*SKIN[2], 255); f[8, 5] = (*SKIN[2], 255)     # nose shadow
     f[9, 1] = (*BLUSH, 255); f[9, 8] = (*BLUSH, 255)
-    f[9, 4] = (*SKIN[2], 255); f[9, 5] = (*SKIN[2], 255)     # nose shadow
-    f[10, 4] = (*MOUTH, 255); f[10, 5] = (*MOUTH, 255)       # mouth
+    f[9, 4] = (*MOUTH, 255); f[9, 5] = (*MOUTH, 255)         # mouth
 
 
 def paint_texture(atlas: Atlas) -> None:
@@ -486,12 +491,14 @@ def paint_texture(atlas: Atlas) -> None:
                 ("calf_lo", "calf_lo_out", 2), ("shin_c", "shin_c_out", 2),
                 ("shin_d", "shin_d_out", 2)]
     for name, out, rows in leggings:
+        # No per-segment top/bottom shading rows: horizontal bands at every
+        # segment boundary would re-create the "bamboo shoot" look in the
+        # texture even though the geometry is smooth. Only the lateral edges
+        # shade, so the leg reads as one continuous surface.
         cloth(cv, r[name], rng, WHITE, base=1, edge=False)
         f = at(cv, r[name])
-        f[0, :] = (*WHITE[0], 255)
         f[:, 0] = (*WHITE[2], 255)
         f[:, r[name][2] - 1] = (*WHITE[2], 255)
-        f[rows - 1, :] = (*WHITE[2], 255)
         if rows >= 4:
             f[2, 1] = (*PURP[1], 255)               # small front motif
         o = at(cv, r[out])
@@ -504,6 +511,51 @@ def paint_texture(atlas: Atlas) -> None:
         flat(cv, r[name], WHITE[2])
     for name in ("calf_hi_in", "calf_lo_in"):
         flat(cv, r[name], WHITE[2])
+
+    # --- prism limb rects: one tall rect per limb so the taper is continuous --
+    lg = at(cv, r["legging"])
+    lg[:] = (*WHITE[1], 255)
+    lg[:, 0] = (*WHITE[2], 255); lg[:, 4] = (*WHITE[2], 255)
+    lg[0, :] = (*WHITE[0], 255)
+    lg[9, :] = (*PURP[1], 255)                      # decorative band (maps to a ring)
+    lg[10, :] = (*WHITE[0], 255)
+    lgo = at(cv, r["legging_out"])
+    lgo[:] = (*WHITE[1], 255)
+    lgo[:, 4] = (*WHITE[2], 255)
+    lgo[9, :] = (*PURP[1], 255)                     # outer seam band
+    lgo[10, :] = (*WHITE[0], 255)
+    lgo[3, 0] = (*PURP[1], 255)
+    cloth(cv, r["legging_top"], rng, WHITE, base=2, edge=False)
+    bm = at(cv, r["boot_mesh"])
+    bm[:] = (*MAROON[1], 255)
+    bm[0, :] = (*GOLD[1], 255)                      # gold cuff (top ring band)
+    bm[1, :] = (*GOLD[2], 255)
+    bm[6, :] = (*MAROON[2], 255)
+    bm[7, :] = (*MAROON[3], 255)
+    bm[:, 0] = (*MAROON[2], 255); bm[:, 3] = (*MAROON[2], 255)
+    bmo = at(cv, r["boot_mesh_out"])
+    bmo[:] = (*MAROON[1], 255)
+    bmo[0, :] = (*GOLD[1], 255)
+    bmo[1, :] = (*GOLD[2], 255)
+    bmo[:, 0] = (*MAROON[3], 255)
+    bmo[3:6, 1] = (*MAROON[0], 255)
+    am = at(cv, r["arm_mesh"])
+    am[:] = (*SKIN[0], 255)
+    am[0:4, :] = (*WHITE[1], 255)                   # kimono-covered upper arm
+    am[3, :] = (*WHITE[2], 255)
+    am[5, :] = (*SKIN[1], 255)
+    am[9, :] = (*SKIN[2], 255)
+    amo = at(cv, r["arm_mesh_out"])
+    amo[:] = (*WHITE[1], 255)
+    amo[4, :] = (*WHITE[2], 255)
+    amo[5:8, :] = (*SKIN[0], 255)
+    amo[8:10, :] = (*SKIN[1], 255)
+    sm = at(cv, r["sleeve_mesh"])
+    sm[:] = (*DARK[0], 255)
+    sm[:, 0] = (*DARK[2], 255); sm[:, 4] = (*DARK[2], 255)
+    sm[0, :] = (*DARK[1], 255)
+    sm[7, :] = (*GOLD[1], 255)                      # gold at the sleeve opening
+    sm[5, :] = (*PURP[3], 255)                      # violet band above the gold
 
     # --- boots: maroon with a gold cuff, darker toward the sole ------------
     flat(cv, r["boot_trim"], GOLD[1])
@@ -577,9 +629,28 @@ def cube(name, frm, to, origin, facemap):
 
 
 def mirror_cubes(cubes):
-    """x-mirror a limb: negate x, swap the east/west face rects."""
+    """x-mirror a limb: negate x, swap the east/west rects (cubes and meshes)."""
     out = []
     for c in cubes:
+        if c.get("mesh"):
+            # mirroring flips handedness, so each quad's winding must be reversed
+            # too -- otherwise every normal points into the limb and the outward
+            # faces get backface-culled, leaving torn triangles
+            verts = {k: [-v[0], v[1], v[2]] for k, v in c["vertices"].items()}
+            quads = {}
+            for face, qs in c["face_quads"].items():
+                new_face = {"east": "west", "west": "east"}.get(face, face)
+                flipped = []
+                for q in qs:
+                    fq = dict(q)
+                    fq["vertices"] = list(reversed(q["vertices"]))
+                    fq["uv"] = dict(q["uv"])
+                    flipped.append(fq)
+                quads[new_face] = flipped
+            out.append({"name": c["name"].replace("_right", "_left"), "mesh": True,
+                        "vertices": verts, "face_quads": quads,
+                        "origin": (-c["origin"][0], c["origin"][1], c["origin"][2])})
+            continue
         fm = dict(c["faces"])
         fm["east"], fm["west"] = fm["west"], fm["east"]
         out.append(cube(c["name"].replace("_right", "_left"),
@@ -590,7 +661,61 @@ def mirror_cubes(cubes):
     return out
 
 
-def right_leg_cubes() -> list:
+def right_leg_parts(rects) -> list:
+    """One leg as a tapered prism (trapezoid box), not a stack of boxes.
+
+    Ring widths follow the reference at the same height fractions: 4.22 each just
+    under the hem (0.40), 3.05 at the knee (0.30), 2.5 at the boot cuff (0.15),
+    1.9 at the foot (0.02). Because the faces slope continuously between rings
+    there is not a single step in the silhouette."""
+    o = (2.05, 25.5, 0)
+    legging = prism("legging_right", [        # rings run bottom -> top
+        (7.8, 0.65, 2.55, -1.82, 1.90),        # boot cuff line
+        (10.0, 0.55, 2.80, -1.88, 2.02),
+        (13.0, 0.45, 3.05, -1.95, 2.20),       # calf, deeper at the back
+        (16.5, 0.30, 3.35, -2.05, 2.05),       # knee line (0.30 of the height)
+        (21.3, -0.05, 4.22, -2.30, 2.30),      # widest, just below the hem
+        (24.0, -0.10, 4.20, -2.35, 2.35),      # hip (hidden under the garment)
+    ], {"north": "legging", "south": "legging", "east": "legging_out",
+        "west": "legging", "up": "legging_top", "down": "legging_top"}, o, rects)
+    boot = prism("boot_right", [              # rings run bottom -> top
+        (1.4, 0.92, 2.22, -1.55, 1.65),
+        (2.6, 0.85, 2.30, -1.62, 1.72),
+        (5.0, 0.75, 2.42, -1.72, 1.80),
+        (7.8, 0.68, 2.52, -1.80, 1.88),
+    ], {"north": "boot_mesh", "south": "boot_mesh", "east": "boot_mesh_out",
+        "west": "boot_mesh", "up": "boot_trim_flat", "down": "boot_mesh"}, o, rects)
+    foot = [
+        cube("foot_heel_right", (0.95, 0.0, 0.4), (2.20, 1.4, 2.4), o,
+             faces(sides("heel_side"), up="heel_up", down="heel_sole",
+                   north="foot_back", south="foot_back")),
+        cube("foot_toe_right", (0.95, 0.0, -3.0), (2.20, 1.4, 0.4), o,
+             faces(sides("foot_toe_side"), up="foot_toe_up", down="foot_sole",
+                   north="foot_front", south="foot_back")),
+    ]
+    return [legging, boot, *foot]
+
+
+def right_arm_parts(rects) -> list:
+    """Slim tapered arm (3.1 -> 2.1 wide) as a prism, plus the detached sleeve."""
+    o = (4.65, 38, 0)
+    arm = prism("arm_right", [
+        (25.0, 4.85, 6.95, -1.00, 1.00),       # wrist
+        (27.0, 4.75, 7.00, -1.10, 1.10),
+        (31.0, 4.60, 7.15, -1.25, 1.25),
+        (35.0, 4.45, 7.30, -1.40, 1.40),
+        (38.5, 4.30, 7.40, -1.50, 1.50),       # shoulder
+    ], {"north": "arm_mesh", "south": "arm_mesh", "east": "arm_mesh_out",
+        "west": "arm_mesh", "up": "arm_up_flat", "down": "hand"}, o, rects)
+    sleeve = prism("sleeve_right", [
+        (24.5, 4.00, 7.80, -1.95, 1.95),       # flared hem
+        (29.0, 4.20, 7.60, -1.70, 1.70),
+        (34.0, 4.35, 7.45, -1.55, 1.55),       # under the band
+    ], {"north": "sleeve_mesh", "south": "sleeve_mesh", "east": "sleeve_mesh",
+        "west": "sleeve_mesh", "up": "sleeve_up", "down": "sleeve_down"}, o, rects)
+    band = cube("sleeve_band_right", (4.3, 33.8, -1.6), (7.5, 34.8, 1.6), o,
+                faces(sides("band"), up="band_flat", down="band_flat"))
+    return [arm, sleeve, band]
     """One leg, tapering 4.1 -> 2.45 in 0.2..0.3 steps so the silhouette reads
     as a curve, not as stacked boxes. Boundaries sit on clothes lines: the
     knee at y12..15, the gold boot cuff at y7.8..9."""
@@ -632,51 +757,27 @@ def right_leg_cubes() -> list:
     cubes.append(cube("boot_hi_right", (0.65, 4.2, -1.75), (2.50, 8.0, 1.75), o,
                       faces(sides("boot_hi"), up="boot_hi_in", down="boot_hi_in",
                             east="boot_hi_out", west="boot_hi_in")))
-    cubes.append(cube("boot_lo_right", (0.75, 2.4, -1.65), (2.40, 4.2, 1.65), o,
+    cubes.append(cube("boot_lo_right", (0.7, 2.4, -1.65), (2.40, 4.2, 1.65), o,
                       faces(sides("boot_lo"), up="boot_lo_in", down="boot_lo_in",
                             east="boot_lo_out", west="boot_lo_in")))
-    cubes.append(cube("foot_heel_right", (0.85, 0.0, 0.4), (1.95, 1.5, 2.6), o,
+    cubes.append(cube("foot_heel_right", (0.75, 0.0, 0.4), (2.05, 1.4, 2.6), o,
                       faces(sides("heel_side"), up="heel_up", down="heel_sole",
                             north="foot_back", south="foot_back")))
-    cubes.append(cube("foot_toe_right", (0.85, 0.0, -3.2), (1.95, 1.5, 0.4), o,
+    cubes.append(cube("foot_toe_right", (0.75, 0.0, -3.2), (2.05, 1.4, 0.4), o,
                       faces(sides("foot_toe_side"), up="foot_toe_up", down="foot_sole",
                             north="foot_front", south="foot_back")))
     # one more step at the ankle (1.95 -> 2.15 -> 2.40), so no single width step
     # in the leg is coarser than the reference's own per-band taper
-    cubes.append(cube("boot_ankle_right", (0.75, 1.5, -1.5), (2.15, 2.4, 2.0), o,
+    cubes.append(cube("boot_ankle_right", (0.7, 1.4, -1.5), (2.25, 2.5, 2.0), o,
                       faces(sides("boot_lo"), up="boot_lo_in", down="boot_lo_in",
                             east="boot_lo_out", west="boot_lo_in")))
     return cubes
 
 
-def right_arm_cubes() -> list:
-    """Slim arm (3.0 -> 2.0) with a detached sleeve that hugs then flares."""
-    o = (4.65, 38, 0)
-    return [
-        cube("deltoid_right", (4.4, 35.5, -1.5), (7.4, 38.5, 1.5), o,
-             faces(sides("arm_top_side"), up="arm_up_flat", down="arm_up_flat")),
-        cube("upper_arm_right", (4.5, 32, -1.4), (7.3, 35.5, 1.4), o,
-             faces(sides("arm_up_side"), up="arm_up_flat", down="arm_up_flat")),
-        cube("forearm_right", (4.7, 27, -1.2), (7.1, 32, 1.2), o,
-             faces(sides("fore_side"), up="fore_end", down="fore_end",
-                   north="fore_front", south="fore_front")),
-        cube("hand_right", (4.9, 25, -1.0), (6.9, 27, 1.0), o,
-             all_faces("hand")),
-        cube("sleeve_hi_right", (4.2, 29, -1.7), (7.6, 34, 1.7), o,
-             faces(sides("sleeve"), up="sleeve_up", down="sleeve_down")),
-        cube("sleeve_lo_right", (4.0, 24.5, -1.9), (7.8, 29, 1.9), o,
-             faces(sides("sleeve_lo"), up="sleeve_up", down="sleeve_down")),
-        cube("sleeve_cuff_right", (3.95, 24.5, -1.95), (7.85, 25.1, 1.95), o,
-             faces(sides("sleeve_cuff"), up="sleeve_cuff", down="sleeve_cuff")),
-        cube("sleeve_band_right", (4.3, 33.8, -1.6), (7.5, 34.8, 1.6), o,
-             faces(sides("band"), up="band_flat", down="band_flat")),
-    ]
-
-
 RECT_NAMES = {name for name, *_ in PACKED_RECTS}
 
 
-def build_tree():
+def build_tree(rects):
     body = {"name": "body", "origin": (0, 25.5, 0), "cubes": [
         # Neck, high collar, cream kimono chest with bust cups, the violet obi
         # with a gold wrap cord and the back bow, the two cream garment tiers
@@ -740,71 +841,176 @@ def build_tree():
                    north="panel_front", south="panel_front")),
     ], "children": [
         {"name": "head", "origin": (0, 41.7, 0), "cubes": [
-            cube("head", (-5.1, 42.8, -5.1), (5.1, 53.1, 5.1), (0, 41.7, 0),
-                 faces({}, north="head_front", south="head_south",
-                       east="head_east", west="head_west",
-                       up="head_up", down="head_down")),
-            cube("bangs", (-5.1, 48.1, -6.0), (5.1, 52, -5.0), (0, 40.6, 0),
-                 faces(sides("bangs_side"), up="bangs_up", down="bangs_down",
-                       north="bangs_front", south="bangs_front")),
-            cube("sidelock_face_right", (4.4, 37.1, -5.6), (5.35, 48, -4.6), (0, 40.6, 0),
+            # Head 10.2 x 11.3 x 10.2 at the reference's chin height (0.781 of
+            # the figure height) and with its 22% head share.
+            # Head as a tapered prism (rings bottom -> top): the chin comes in to
+            # 5.2 wide and the crown rounds off, so the face is a narrowing
+            # surface, not a flat square -- the same trapezoid approach as the
+            # reference. The face rect's rows are distributed over these rings by
+            # height, so the features sit at the right heights.
+            prism("head", [
+                (41.7, -2.60, 2.60, -4.20, 1.60),      # chin
+                (43.6, -3.85, 3.85, -4.95, 2.90),      # jaw
+                (46.0, -5.10, 5.10, -5.10, 4.60),      # cheeks (widest)
+                (49.5, -5.15, 5.15, -5.15, 4.90),      # eye line
+                (51.8, -4.60, 4.60, -4.70, 4.70),      # crown
+                (53.0, -3.60, 3.60, -3.70, 3.70),      # top
+            ], {"north": "head_front", "south": "head_south", "east": "head_east",
+                "west": "head_west", "up": "head_up", "down": "head_down"},
+                (0, 41.7, 0), rects),
+            # fringe plate follows the same taper, sitting just proud of the face
+            prism("bangs", [
+                (48.8, -5.10, 5.10, -6.05, -5.00),
+                (50.0, -5.00, 5.00, -6.00, -4.95),
+                (52.0, -4.28, 4.28, -5.60, -4.55),
+                (53.2, -3.70, 3.70, -4.85, -3.80),
+            ], {"north": "bangs_front", "south": "bangs_front", "east": "bangs_side",
+                "west": "bangs_side", "up": "bangs_up", "down": "bangs_down"},
+                (0, 41.7, 0), rects),
+            cube("sidelock_face_right", (4.4, 37.0, -5.6), (5.35, 49.0, -4.6), (0, 41.7, 0),
                  faces(sides("sl_side"), up="sl_end", down="sl_end",
                        north="sl_front", south="sl_front")),
-            cube("sidelock_face_left", (-5.35, 37.1, -5.6), (-4.4, 48, -4.6), (0, 40.6, 0),
+            cube("sidelock_face_left", (-5.35, 37.0, -5.6), (-4.4, 49.0, -4.6), (0, 41.7, 0),
                  faces(sides("sl_side"), up="sl_end", down="sl_end",
                        north="sl_front", south="sl_front")),
-            cube("sidelock_neck_right", (3.6, 34.1, -4.6), (4.7, 36, -3.6), (0, 40.6, 0),
+            cube("sidelock_neck_right", (3.6, 34.0, -4.6), (4.7, 37.0, -3.6), (0, 41.7, 0),
                  faces(sides("nl_side"), up="nl_end", down="nl_end",
                        north="nl_front", south="nl_front")),
-            cube("sidelock_neck_left", (-4.7, 34.1, -4.6), (-3.6, 36, -3.6), (0, 40.6, 0),
+            cube("sidelock_neck_left", (-4.7, 34.0, -4.6), (-3.6, 37.0, -3.6), (0, 41.7, 0),
                  faces(sides("nl_side"), up="nl_end", down="nl_end",
                        north="nl_front", south="nl_front")),
-            cube("hair_back_up", (-5.2, 47.1, 5.1), (5.2, 52, 7.6), (0, 40.6, 0),
+            cube("hair_back_up", (-5.2, 47.0, 5.1), (5.2, 53.0, 7.6), (0, 41.7, 0),
                  faces(sides("hbup_side"), up="hbup_top", down="hbup_top",
                        north="hbup_back", south="hbup_back")),
-            cube("hair_back_mid", (-5.7, 41.1, 4.6), (5.7, 46, 7.1), (0, 40.6, 0),
+            cube("hair_back_mid", (-5.7, 41.0, 4.6), (5.7, 47.0, 7.1), (0, 41.7, 0),
                  faces(sides("hbmid_side"), up="hbmid_top", down="hbmid_bot",
                        north="hbmid_back", south="hbmid_back")),
-            cube("hair_back_lo", (-5.0, 35.1, 4.4), (5.0, 40, 6.6), (0, 40.6, 0),
+            cube("hair_back_lo", (-5.0, 35.0, 4.4), (5.0, 41.0, 6.6), (0, 41.7, 0),
                  faces(sides("hblo_side"), up="hblo_top", down="hblo_bot",
                        north="hblo_back", south="hblo_back")),
-            cube("tiara", (-2.6, 53.1, -3.4), (2.6, 53.4, -1.4), (0, 40.6, 0),
+            cube("tiara", (-2.6, 53.0, -3.4), (2.6, 53.4, -1.4), (0, 41.7, 0),
                  all_faces("gold")),
-            cube("ornament_flower", (4.4, 46.3, -3.2), (5.5, 47.2, -1.4), (0, 40.6, 0),
+            cube("ornament_flower", (4.4, 46.3, -3.2), (5.5, 48.3, -1.4), (0, 41.7, 0),
                  all_faces("flower")),
-            cube("ornament_tassel", (4.9, 43.9, -2.7), (5.6, 45.2, -1.8), (0, 40.6, 0),
+            cube("ornament_tassel", (4.9, 43.9, -2.7), (5.6, 46.3, -1.8), (0, 41.7, 0),
                  all_faces("orn_tassel")),
         ], "children": [
             # Signature braid: 12 staggered segments down to the calf, with a
             # gold tie, a hair tassel and a gold tip.
-            {"name": "braid", "origin": (0, 44, 5.6), "cubes": [
-                cube(f"braid_{i}", (-1.8 if i % 2 else -1.5, 42 - 3.2 * i, 5.6),
-                     (1.5 if i % 2 else 1.8, 45.2 - 3.2 * i, 8.8), (0, 44, 5.6),
+            {"name": "braid", "origin": (0, 45, 5.6), "cubes": [
+                cube(f"braid_{i}", (-1.8 if i % 2 else -1.5, 43 - 3.2 * i, 5.6),
+                     (1.5 if i % 2 else 1.8, 46.2 - 3.2 * i, 8.8), (0, 45, 5.6),
                      all_faces("braid_seg"))
                 for i in range(12)
             ] + [
-                cube("braid_tie", (-1.3, 5.7, 6.1), (1.3, 6.2, 8.3), (0, 44, 5.6),
+                cube("braid_tie", (-1.3, 4.6, 6.1), (1.3, 6.2, 8.3), (0, 45, 5.6),
                      faces(sides("braid_tie"), up="gold", down="gold")),
-                cube("braid_tassel", (-1.1, 2.7, 6.2), (1.1, 4.6, 8.2), (0, 44, 5.6),
+                cube("braid_tassel", (-1.1, 1.6, 6.2), (1.1, 4.6, 8.2), (0, 45, 5.6),
                      all_faces("braid_tassel")),
-                cube("braid_tip", (-0.9, 1.5, 6.4), (0.9, 1.6, 8.0), (0, 44, 5.6),
+                cube("braid_tip", (-0.9, 0.4, 6.4), (0.9, 1.6, 8.0), (0, 45, 5.6),
                      all_faces("gold")),
             ]},
         ]},
-        {"name": "right_arm", "origin": (4.65, 38, 0), "cubes": right_arm_cubes()},
-        {"name": "left_arm", "origin": (-4.65, 38, 0), "cubes": mirror_cubes(right_arm_cubes())},
-        {"name": "right_leg", "origin": (2.05, 25.5, 0), "cubes": right_leg_cubes()},
-        {"name": "left_leg", "origin": (-2.05, 25.5, 0), "cubes": mirror_cubes(right_leg_cubes())},
+        {"name": "right_arm", "origin": (4.65, 38, 0), "cubes": right_arm_parts(rects)},
+        {"name": "left_arm", "origin": (-4.65, 38, 0), "cubes": mirror_cubes(right_arm_parts(rects))},
+        {"name": "right_leg", "origin": (2.05, 25.5, 0), "cubes": right_leg_parts(rects)},
+        {"name": "left_leg", "origin": (-2.05, 25.5, 0), "cubes": mirror_cubes(right_leg_parts(rects))},
     ]}
     return {"name": MODEL_NAME, "origin": (0, 0, 0), "children": [body]}
 
 
 # --- bbmodel writing -------------------------------------------------------
+def prism(name, rings, face_rects, origin, rects):
+    """A tapered prism as a Blockbench **mesh** element.
+
+    `rings` are horizontal quads (y, x0, x1, z0, z1) from bottom to top, each of
+    its own size, so the side faces slope and the silhouette curves smoothly --
+    this is how the reference builds limbs (trapezoid boxes), where stacking
+    axis-aligned cubes of decreasing width leaves visible steps.
+
+    `face_rects` maps face -> rect name. A side face's uv band is taken from the
+    rect by the rings' actual heights (so the texture stays proportional); the
+    up/down caps use the whole rect, positioned like a cube's top/bottom face.
+    """
+    verts: dict[str, list[float]] = {}
+    for i, (y, x0, x1, z0, z1) in enumerate(rings):
+        verts[f"{i}0"] = [x0, y, z0]          # north-west
+        verts[f"{i}1"] = [x1, y, z0]          # north-east
+        verts[f"{i}2"] = [x1, y, z1]          # south-east
+        verts[f"{i}3"] = [x0, y, z1]          # south-west
+
+    ys = [r[0] for r in rings]
+    span = max(ys[-1] - ys[0], 1e-6)
+    last = len(rings) - 1
+
+    def side_quad(keys, rect, along_z):
+        """along_z: on the east/west faces the texture's horizontal axis is the
+        depth (z), on the north/south faces it is x -- getting this wrong squashes
+        the whole face into one texture column."""
+        x, y0, w, h = rects[rect]
+        uv = {}
+        for k in keys:
+            ring, corner = int(k[:-1]), k[-1]
+            right = corner in (("2", "3") if along_z else ("1", "2"))
+            uv[k] = [x + (w if right else 0),
+                     y0 + h * (ys[-1] - ys[ring]) / span]
+        return {"rect": rect, "vertices": keys, "uv": uv, "texture": 0}
+
+    def cap_quad(keys, rect, top):
+        x, y0, w, h = rects[rect]
+        uv = {k: [x + (w if k[-1] in ("1", "2") else 0),
+                  y0 + (0 if k[-1] in ("0", "1") else h)] for k in keys}
+        if not top:                      # floor faces with the texture the same way
+            uv = {k: [x + (w if k[-1] in ("1", "2") else 0),
+                      y0 + (h if k[-1] in ("0", "1") else 0)] for k in keys}
+        return {"rect": rect, "vertices": keys, "uv": uv, "texture": 0}
+
+    quads: dict[str, list[dict]] = {"north": [], "south": [], "east": [], "west": []}
+    for i in range(last):
+        j = i + 1
+        quads["north"].append(side_quad([f"{i}0", f"{j}0", f"{j}1", f"{i}1"], face_rects["north"], False))
+        quads["south"].append(side_quad([f"{i}3", f"{i}2", f"{j}2", f"{j}3"], face_rects["south"], False))
+        quads["east"].append(side_quad([f"{i}2", f"{i}1", f"{j}1", f"{j}2"], face_rects["east"], True))
+        quads["west"].append(side_quad([f"{i}0", f"{i}3", f"{j}3", f"{j}0"], face_rects["west"], True))
+    quads["up"] = [cap_quad([f"{last}0", f"{last}3", f"{last}2", f"{last}1"],
+                            face_rects.get("up", face_rects["north"]), True)]
+    quads["down"] = [cap_quad(["00", "01", "02", "03"],
+                              face_rects.get("down", face_rects["north"]), False)]
+    return {"name": name, "mesh": True, "vertices": verts, "face_quads": quads,
+            "origin": origin}
+
+
+def mesh_faces_used(node, used: set) -> None:
+    for c in node.get("cubes") or []:
+        if c.get("mesh"):
+            for quads in c["face_quads"].values():
+                used.update(q["rect"] for q in quads if "rect" in q)
+        else:
+            used.update(c["faces"].values())
+    for child in node.get("children") or []:
+        mesh_faces_used(child, used)
+
+
 def write_model(path: str, tree, rects, texture: Image.Image,
                 resolution=(128, 128)) -> int:
     elements: list[dict] = []
 
     def emit_cube(c: dict) -> str:
+        if c.get("mesh"):
+            faces = {}
+            for face, quads in c["face_quads"].items():
+                for n, q in enumerate(quads):
+                    faces[face if n == 0 else f"{face}{n}"] = {
+                        "vertices": q["vertices"],
+                        "uv": {k: [float(u), float(v)] for k, (u, v) in q["uv"].items()},
+                        "texture": 0}
+            el = {"name": c["name"], "type": "mesh",
+                  "origin": [float(v) for v in c["origin"]],
+                  "uuid": str(uuid.uuid4()),
+                  "vertices": {k: [float(x) for x in v] for k, v in c["vertices"].items()},
+                  "faces": faces, "seams": {}, "color": 0}
+            elements.append(el)
+            return el["uuid"]
         el = {
             "name": c["name"],
             "from": [float(v) for v in c["from"]],
@@ -856,7 +1062,11 @@ def unsampled_rects(atlas: Atlas, tree) -> list[str]:
 
     def walk(node):
         for c in node.get("cubes") or []:
-            used.update(c["faces"].values())
+            if c.get("mesh"):
+                for qs in c["face_quads"].values():
+                    used.update(q["rect"] for q in qs)
+            else:
+                used.update(c["faces"].values())
         for child in node.get("children") or []:
             walk(child)
 
@@ -880,7 +1090,7 @@ def main() -> int:
     paint_texture(atlas)
     atlas.extend_edges()
 
-    tree = build_tree()
+    tree = build_tree(atlas.rects)
     unpainted = unsampled_rects(atlas, tree)
     if unpainted:
         raise SystemExit(f"faces sample unpainted rects: {unpainted}")

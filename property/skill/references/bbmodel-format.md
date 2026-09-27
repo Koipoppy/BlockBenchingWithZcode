@@ -232,4 +232,38 @@ asar 头部（小端 u32）：
 - **挂在旋转链下的物件**（本例：枪挂在右前臂组下）：让它在世界里落在 `G + R_world·L`
   （`L` 是相对枢轴的局部偏移），正确写法是节点旋转取 `R_local = R_chain⁻¹·R_world`、
   子方块座标写 `pivot + L`（L 原样，不要再乘一次 R_local）。错写成 `pivot + R_local·L`
-  会让物件整体转错一个 R_local——见 pitfalls.md 第 15 条。
+  会让物件整体转错一个 R_local——见 pitfalls.md 第 16 条。
+
+- **组的 origin/rotation 写两份**（第三轮的实测结论，见 pitfalls #22）：outliner 节点内联一份
+  （4.5 legacy 路径，Blockbench 本体读）+ 顶层 `groups` 表一份（5.0 布局，bb-render 等第三方读），
+  两边 uuid 相同即可，Blockbench 按 uuid 合并不会重复。**只写内联那份时，Blockbench 与它的
+  validator 都正确，但第三方渲染器会渲染成复位姿态**——这类"只在第三方工具下暴露"的格式问题，
+  是必须跑交叉门的理由。
+
+## 13. 动画关键帧的旋转约定（MCP 实测，2026-09-25）
+
+`golden_loong` 是关键帧最多的工程（41 根骨骼 × 546 帧）。用 `bbmodel_edit` 的
+`set_keyframe` 逐帧写、再读回文件核对，得到两条可以直接依赖的事实：
+
+| 事实 | 实测 |
+|---|---|
+| **关键帧的 rotation 值与组 `rotation` 同一套约定** | 传 `value: [30, 0, 0]`，文件里存成 `"x":"30","y":"0","z":"0"`——**没有取负、没有换序**。（`bbmodel_convert_legacy` 那条"4.10 要取负 x/y"是**导出到 4.10 布局**时才做的事，与 5.0 无关） |
+| 值是**字符串**存的 | 数字也写成 `"30"` 而不是 `30`；解析时 `float()` 一下即可 |
+
+推论（写动画时很省事）：
+
+- **每帧可以从基准姿态直接加波**：`value = e_base + A·sin(ωt − k·s)`，不用把姿态换算到别的约定；
+- 通道只有 `rotation` / `position` / `scale` 三条，`position`/`scale` 是**增量**（叠在组的 origin 上），
+  所以"宝珠上下浮动 + 呼吸缩放"就是给 `pearl` 组写 position 与 scale 两条通道；
+- `add_animation` 的 `length` 是**秒**，`snapping` 是每秒帧数（写 24 即按 24 fps 吸附时间）；
+  循环动画的首尾帧要写成同一个值（正弦按整周期采样天然满足）。
+
+## 14. 走 MCP 授权的工程落盘长什么样（`golden_loong`）
+
+同一个模型，脚本直接写文件得到 **4.5**（内联组），走 MCP 得到 **5.0**（顶层 `groups` 表）。
+§11 那张对照表对这条路径同样成立，另外两点实测：
+
+- 元素会带上 `scope` / `autouv` / `export` / `locked` / `allow_mirror_modeling` / `render_order`
+  等 5.x 字段（`scope` 全为 0 = 模型空间）；
+- 贴图的 `render_mode` 是**每张纹理**一个：自发光部件必须放进**单独一张**纹理
+  （金龙用了两张：`_body` 是 `default`、`_glow` 是 `emissive`），面的 `texture` 字段用索引选张。

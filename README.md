@@ -1,4 +1,4 @@
-# BlockBenchingWithZcode — Minecraft 风格 Blockbench 模型集
+# BlockBenchingWithZcode — Blockbench 模型集
 
 模型就是根目录下的各个文件夹：**一个模型一个文件夹，文件夹名 = 模型名**。每个模型文件夹里放：工程（`.bbmodel`）、贴图、预览图、以及它自己的生成脚本 `build_<模型名>.py`（重跑即可复现）。
 这里不再逐个登记模型（省得每加一个都要回来改一遍），要看清单直接看目录。

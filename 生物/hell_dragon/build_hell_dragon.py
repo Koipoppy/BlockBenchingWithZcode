@@ -26,8 +26,14 @@ import zlib
 from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.dirname(os.path.dirname(HERE))   # 上一级：工作区（放 .mcp 的那层）
-PROP = os.path.dirname(HERE)                    # 本仓库根 = 模型目录
+# 模型目录在仓库里的深度不固定（生物/、物品/……）：向上找仓库根，工作区 = 它的上一级
+ROOT = HERE
+while not os.path.isfile(os.path.join(ROOT, "tools", "bbmodel_kit.py")):
+    parent = os.path.dirname(ROOT)
+    if parent == ROOT:
+        raise SystemExit(f"找不到仓库根（含 tools/bbmodel_kit.py 的目录）：{HERE}")
+    ROOT = parent
+REPO = os.path.dirname(ROOT)                    # 工作区（放 .mcp 的那层）
 OUT_DIR = HERE
 MODEL = os.path.join(OUT_DIR, "hell_dragon.bbmodel")
 TEX_PNG = os.path.join(OUT_DIR, "hell_dragon.png")

@@ -2,7 +2,7 @@
 
     python shirt_skirt_girl/build_shirt_skirt_girl.py
 
-读 ../参考/人物/[无动画共享]映素2.5代-女性标准体型v3.7.bbmodel，身体几何**原样保留**
+读 人工建模参考/人物/[无动画共享]映素2.5代-女性标准体型v3.7.bbmodel，身体几何**原样保留**
 （140 个方块、组层级、贴图 0 都不动），只在外面加两层衣服 + 一张衣服自己的贴图。
 
 衬衫 Shirt（挂 UpperBody 下）
@@ -46,11 +46,17 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True                      # 别把 __pycache__ 带进仓库
-ROOT = os.path.dirname(HERE)
+# 模型目录在仓库里的深度不固定（人物/、兵器/……），向上找仓库根
+ROOT = HERE
+while not os.path.isfile(os.path.join(ROOT, "tools", "bbmodel_kit.py")):
+    parent = os.path.dirname(ROOT)
+    if parent == ROOT:
+        raise SystemExit(f"找不到仓库根（含 tools/bbmodel_kit.py 的目录）：{HERE}")
+    ROOT = parent
 sys.path.insert(0, os.path.join(ROOT, "tools"))     # 共享的 bbmodel_kit.py
 from bbmodel_kit import V, rot_ZYX, walk_groups, coplanar_conflicts  # noqa: E402
 
-BASE = os.path.join(ROOT, "参考", "人物",
+BASE = os.path.join(ROOT, "人工建模参考", "人物",
                     "[无动画共享]映素2.5代-女性标准体型v3.7.bbmodel")
 MODEL_NAME = "shirt_skirt_girl"
 OUT_BBMODEL = os.path.join(HERE, f"{MODEL_NAME}.bbmodel")

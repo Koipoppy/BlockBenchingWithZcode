@@ -43,8 +43,16 @@ import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROPERTY = os.path.dirname(HERE)
 sys.dont_write_bytecode = True
+# the model folders sit in category folders now (生物/人物/物品/兵器), so walk up
+# to the repo root (the folder holding tools/bbmodel_kit.py) and take the
+# workspace -- the folder holding .mcp/ -- as its parent
+PROPERTY = HERE
+while not os.path.isfile(os.path.join(PROPERTY, "tools", "bbmodel_kit.py")):
+    parent = os.path.dirname(PROPERTY)
+    if parent == PROPERTY:
+        raise SystemExit(f"repo root not found above {HERE}")
+    PROPERTY = parent
 sys.path.insert(0, os.path.join(PROPERTY, "tools"))   # 共享的 bbmodel_kit.py 在 tools/
 sys.path.insert(0, os.path.join(os.path.dirname(PROPERTY), ".mcp"))
 

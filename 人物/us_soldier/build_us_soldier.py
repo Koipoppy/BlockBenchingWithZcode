@@ -59,7 +59,15 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True          # keep __pycache__ out of the repo
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), "tools"))   # 共享的 bbmodel_kit.py 在 tools/
+# the model folders sit in category folders now (人物/物品/兵器/生物), so the
+# depth is not fixed: walk up to the folder that holds tools/bbmodel_kit.py
+ROOT = HERE
+while not os.path.isfile(os.path.join(ROOT, "tools", "bbmodel_kit.py")):
+    parent = os.path.dirname(ROOT)
+    if parent == ROOT:
+        raise SystemExit(f"repo root not found above {HERE}")
+    ROOT = parent
+sys.path.insert(0, os.path.join(ROOT, "tools"))   # 共享的 bbmodel_kit.py 在 tools/
 from bbmodel_kit import (FACES, V, unit, rot_ZYX, euler_ZYX, walk_groups,  # noqa: E402
                          coplanar_conflicts, posed_contacts, face_size,
                          stretch_report)

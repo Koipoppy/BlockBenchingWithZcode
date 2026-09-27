@@ -7,14 +7,14 @@
 
 | 文件 | 说明 |
 |---|---|
-| `preview_bbmodel.py` | 自建离线渲染器（零依赖、可脚本化），`--ground` 可调接触阴影半径；任何 `.bbmodel` 都能渲 |
-| `bbmodel_kit.py` | 格式变换代数（`rot_ZYX`/`euler_ZYX`/`walk_groups`）+ 三项结构自检（共面 z-fighting、姿态后接触、贴图拉伸）；`golden_loong` 与 `us_soldier` 的生成脚本会 import 它 |
-| `compare_model.py`、`compare_reference.py` | 已退役的打分工具（对应模型已删，2026-09-27），留下作"按参考图实测地标逐项打分"的参考实现 |
+| `tools/preview_bbmodel.py` | 自建离线渲染器（零依赖、可脚本化），`--ground` 可调接触阴影半径；任何 `.bbmodel` 都能渲 |
+| `tools/bbmodel_kit.py` | 格式变换代数（`rot_ZYX`/`euler_ZYX`/`walk_groups`）+ 三项结构自检（共面 z-fighting、姿态后接触、贴图拉伸）；`golden_loong` 与 `us_soldier` 的生成脚本会 import 它 |
+| `tools/compare_model.py`、`tools/compare_reference.py` | 已退役的打分工具（对应模型已删，2026-09-27），留下作"按参考图实测地标逐项打分"的参考实现 |
 | `<模型名>/build_<模型名>.py` | 每个模型自己的一键生成脚本（贴图 + 几何 + 写出 `.bbmodel`），就放在该模型文件夹里 |
 | `<模型名>/export_bedrock.py` | 手写 Bedrock 几何导出（`compileCube`/`compileGroup` 规则实测自 Blockbench 源码），在 `muscle_creeper/` 里 |
 | 工作区 `.mcp/`（本目录之外） | **无头 MCP**：第三方校验 / 渲染 / 导出 / 编辑 `.bbmodel`，不需要 Blockbench 运行；`call_tool.py` 的 `Client` 可 import，用来让生成脚本**通过 MCP 授权**整个工程（金龙的做法） |
 
-> **2026-09-24 修复**：`preview_bbmodel.py` 的逐面 UV 采样条件原本写反了，导致预览图里
+> **2026-09-24 修复**：`tools/preview_bbmodel.py` 的逐面 UV 采样条件原本写反了，导致预览图里
 > 每个面都被渲染成 180° 旋转（`v` 轴上下颠倒 + 左右镜像）。`bbmodel` 工程本身从来没受过影响
 > （Blockbench 里的朝向一直是 README 约定的"从外侧看正立不镜像"），只有离线预览 PNG 受影响。
 > 噪点贴图看不出来，方向性贴图（苦力怕的鬼脸）看得出来。所有模型的预览图已用修好的渲染器重出。
@@ -34,8 +34,8 @@
 ```
 <仓库根>
 ├─ README.md            本文件：格式约定 + 共享脚本说明
-├─ preview_bbmodel.py   共享：离线渲染器
-├─ bbmodel_kit.py       共享：格式变换代数 + 结构自检
+├─ tools/               共享脚本：离线渲染器 preview_bbmodel.py、格式代数 bbmodel_kit.py、
+│                       两个退役打分工具、以及临时输出 out/
 └─ <模型名>/
    ├─ <模型名>.bbmodel  Blockbench 工程（贴图 base64 内嵌，双击即看）
    ├─ <模型名>.png      同一张贴图单独导出

@@ -1,7 +1,7 @@
 """Render a .bbmodel to a PNG, offline, with the same conventions Blockbench uses.
 
-    python preview_bbmodel.py ../bawanghua_flower_pot.bbmodel ../preview.png
-    python preview_bbmodel.py model.bbmodel out.png --azimuth 40 --elevation 25
+    python tools/preview_bbmodel.py bawanghua_flower_pot/bawanghua_flower_pot.bbmodel out/preview.png
+    python tools/preview_bbmodel.py cottage/cottage.bbmodel out/cottage.png --azimuth 40 --elevation 25
 
 Why this exists: the model is judged by looking at it, and the thing that judges it must
 not be the code that built it. Blockbench has no headless CLI (its plugins folder is not

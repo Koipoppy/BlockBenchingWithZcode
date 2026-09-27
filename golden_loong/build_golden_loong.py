@@ -45,7 +45,7 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROPERTY = os.path.dirname(HERE)
 sys.dont_write_bytecode = True
-sys.path.insert(0, PROPERTY)          # 共享的 bbmodel_kit.py 在仓库根
+sys.path.insert(0, os.path.join(PROPERTY, "tools"))   # 共享的 bbmodel_kit.py 在 tools/
 sys.path.insert(0, os.path.join(os.path.dirname(PROPERTY), ".mcp"))
 
 from bbmodel_kit import (FACES, V, unit, rot_ZYX, euler_ZYX, walk_groups,  # noqa: E402

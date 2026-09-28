@@ -88,23 +88,28 @@ def coplanar_conflicts(tree, eps=1e-6, min_area=0.02):
     overlapping area. Opposite-facing coincident planes are legal (and used
     deliberately -- a patch flush on a sleeve, a barrel butted into a receiver).
 
-    Pairs inside one chain are compared in the authored frame, because a shared
-    rigid transform preserves coplanarity and overlap exactly; so are pairs of
-    cubes whose chains are both unrotated. Pairs where either side is posed by a
-    rotated chain are left to posed_contacts(), since their authored boxes are
-    not what gets drawn.
+    Two boxes are only worth comparing when they are rotated the SAME way: if
+    their total rotations (chain times the element's own) match, the authored
+    boxes are what get drawn, and coplanarity and overlap carry over exactly.
+    Otherwise their authored boxes are not the drawn geometry, and any pair has
+    to go through posed_contacts() instead. So a plate riding a 6-degree limb
+    against a plate riding a 14-degree one, or a left knee against a right one
+    (mirrored rotations), is skipped -- with element rotations in play the old
+    "same chain" shortcut would report pairs that can never fight.
     """
     boxes = []
     for path, c, R, _t in walk_groups(tree):
+        el = c.get("rotation")
+        total = R @ rot_ZYX(*el) if el else R
         boxes.append({"path": path, "chain": path.rsplit("/", 1)[0],
                       "from": V(*c["from"]), "to": V(*c["to"]),
-                      "rotated": not np.allclose(R, np.eye(3))})
+                      "R": total, "rotated": not np.allclose(total, np.eye(3))})
     trouble = []
     for i in range(len(boxes)):
         a = boxes[i]
         for j in range(i + 1, len(boxes)):
             b = boxes[j]
-            if (a["rotated"] or b["rotated"]) and a["chain"] != b["chain"]:
+            if not np.allclose(a["R"], b["R"]):
                 continue
             lo, hi = np.maximum(a["from"], b["from"]), np.minimum(a["to"], b["to"])
             ov = hi - lo
@@ -117,6 +122,72 @@ def coplanar_conflicts(tree, eps=1e-6, min_area=0.02):
                     if abs(ca - cb) < eps:
                         trouble.append((a["path"], b["path"], "xyz"[axis], tag, ca))
     return trouble
+
+
+def coplanar_visible(tree, eps=1e-6, min_area=0.02, probe=0.3, samples=3):
+    """coplanar_conflicts, minus the coincidences nobody can see.
+
+    Two same-facing coincident faces z-fight only where the space just outside
+    the shared plane is empty. In a voxel model most coincidences are interior:
+    a rib plate butted against the torso, a trim band flush on the plate it
+    caps, a plate stack where each layer sits on the one below -- the plane is
+    buried and nothing flickers. coplanar_conflicts over-reports those (it has
+    no occlusion test), which makes it unusable as a hard gate on a model built
+    out of stacked armour; this is the same check with the buried ones removed.
+
+    The test: sample the shared area a fraction of a unit off the plane, along
+    the normal the two faces share, and report the pair only if some sample
+    point is not inside any third box. Returns (path_a, path_b, axis, tag,
+    coord) exactly like coplanar_conflicts, so a caller can swap one for the
+    other -- `min_area` and the same-chain/rotation scope are identical.
+    """
+    boxes = []
+    for path, c, R, _t in walk_groups(tree):
+        el = c.get("rotation")
+        total = R @ rot_ZYX(*el) if el else R
+        boxes.append({"path": path, "chain": path.rsplit("/", 1)[0],
+                      "from": V(*c["from"]), "to": V(*c["to"]),
+                      "R": total, "rotated": not np.allclose(total, np.eye(3))})
+    out = []
+    for i in range(len(boxes)):
+        a = boxes[i]
+        for j in range(i + 1, len(boxes)):
+            b = boxes[j]
+            if not np.allclose(a["R"], b["R"]):
+                continue
+            lo, hi = np.maximum(a["from"], b["from"]), np.minimum(a["to"], b["to"])
+            ov = hi - lo
+            for axis in range(3):
+                cross = [k for k in range(3) if k != axis]
+                if min(ov[k] for k in cross) <= min_area:
+                    continue
+                for sign, tag in ((+1, "min"), (-1, "max")):
+                    ca = a["from"][axis] if sign > 0 else a["to"][axis]
+                    cb = b["from"][axis] if sign > 0 else b["to"][axis]
+                    if abs(ca - cb) >= eps:
+                        continue
+                    # the shared faces look outward along -axis on a "min" plane
+                    if _face_exposed(boxes, (i, j), axis, -sign, ca, lo, hi, cross,
+                                     probe, samples):
+                        out.append((a["path"], b["path"], "xyz"[axis], tag, ca))
+    return out
+
+
+def _face_exposed(boxes, skip, axis, normal, coord, lo, hi, cross, probe, samples):
+    """Is any part of the shared plane outside both boxes (and outside every
+    other box)? A sample grid over the shared area, probed just off the plane."""
+    keep = [b for k, b in enumerate(boxes) if k not in skip]
+    for u in range(samples):
+        for v in range(samples):
+            p = np.zeros(3)
+            for n, k in enumerate(cross):
+                t = (u + 0.5) / samples if n == 0 else (v + 0.5) / samples
+                p[k] = lo[k] + t * (hi[k] - lo[k])
+            p[axis] = coord + normal * probe
+            if not any(np.all(p > b["from"] + 1e-9) and np.all(p < b["to"] - 1e-9)
+                       for b in keep):
+                return True
+    return False
 
 
 def posed_contacts(tree, min_vol=0.05):
@@ -169,4 +240,116 @@ def stretch_report(tree, tol=0.08):
                               (face_size(face, c["from"], c["to"])[1], h)):
                 if want > 1e-6 and abs(got - want) / want > tol:
                     out.append((path, face, round(want, 2), got))
+    return out
+
+# local corner signs per face, and the six face normals: used to get a cube's
+# faces into world space, which coplanar_conflicts cannot do -- it compares
+# AUTHORED boxes and therefore only dares compare cubes that share a rotation.
+_CORNER = [(-1, -1, -1), (1, -1, -1), (-1, 1, -1), (1, 1, -1),
+           (-1, -1, 1), (1, -1, 1), (-1, 1, 1), (1, 1, 1)]
+_FACE_IX = {"north": (0, 1, 3, 2), "south": (4, 5, 7, 6), "west": (0, 2, 6, 4),
+            "east": (1, 3, 7, 5), "up": (2, 3, 7, 6), "down": (0, 1, 5, 4)}
+_FACE_N = {"north": (0, 0, -1), "south": (0, 0, 1), "west": (-1, 0, 0),
+           "east": (1, 0, 0), "up": (0, 1, 0), "down": (0, -1, 0)}
+
+
+def _world_boxes(tree):
+    """Every cube as (path, M, origin, t, from, to, faces) with its faces in
+    world space: each (tag, normal, quad)."""
+    out = []
+    for path, c, R, t in walk_groups(tree):
+        el = c.get("rotation")
+        M = R @ rot_ZYX(*el) if el else R
+        o = np.array(c.get("origin") or (0.0, 0.0, 0.0), float)
+        lo, hi = np.array(c["from"], float), np.array(c["to"], float)
+        cor = {}
+        for k, sg in enumerate(_CORNER):
+            q = np.array([hi[i] if sg[i] > 0 else lo[i] for i in range(3)])
+            cor[k] = M @ (q - o) + o + t
+        faces = [(tag, M @ np.array(_FACE_N[tag], float),
+                  np.array([cor[k] for k in ix])) for tag, ix in _FACE_IX.items()]
+        out.append({"path": path, "M": M, "o": o, "t": t, "from": lo, "to": hi,
+                    "faces": faces})
+    return out
+
+
+def _in_box(b, p, eps=1e-6):
+    q = b["M"].T @ (p - b["o"] - b["t"]) + b["o"]
+    return bool(np.all(q > b["from"]+eps) and np.all(q < b["to"]-eps))
+
+
+def _poly_uv(quad, n):
+    a = np.array([1.0, 0, 0]) if abs(n[0]) < 0.9 else np.array([0, 1.0, 0])
+    u = np.cross(n, a); u /= np.linalg.norm(u)
+    v = np.cross(n, u)
+    return np.array([[q @ u, q @ v] for q in quad])
+
+
+def _inside_2d(poly, p):
+    s = 0
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        cr = (b[0]-a[0])*(p[1]-a[1]) - (b[1]-a[1])*(p[0]-a[0])
+        if abs(cr) < 1e-12:
+            continue
+        s += 1 if cr > 0 else -1
+    return abs(s) == len(poly)
+
+
+def zfight_world(tree, eps=1e-4, probe=0.3, samples=3, min_area=0.02):
+    """Coincident same-facing faces IN WORLD SPACE, exposed ones only.
+
+    coplanar_conflicts only compares cubes that share a total rotation, because
+    it works on authored boxes (ISSUE.md 7). That leaves the biggest real
+    offender untested: a RING of plates, where every plate has its own yaw, all
+    of them share a height, and neighbours overlap by design -- so their top
+    faces are one plane, stacked and overlapping, and the renderer picks a
+    winner per pixel. Rendering a `ring()` band shows it as a shimmering rim.
+
+    This walks the transformed faces instead: parallel normals, equal plane
+    offset, overlapping area, and -- like coplanar_visible -- reported only when
+    the shared area is not buried inside some third cube.
+
+    Returns (path_a, path_b, tag_a, tag_b, normal, coord).
+    """
+    boxes = _world_boxes(tree)
+    out = []
+    for i in range(len(boxes)):
+        a = boxes[i]
+        for j in range(i + 1, len(boxes)):
+            b = boxes[j]
+            for ta, na, qa in a["faces"]:
+                for tb, nb, qb in b["faces"]:
+                    if float(na @ nb) < 0.9999:
+                        continue
+                    ca, cb = float(na @ qa[0]), float(nb @ qb[0])
+                    if abs(ca - cb) > eps:
+                        continue
+                    p1, p2 = _poly_uv(qa, na), _poly_uv(qb, na)
+                    lo = np.maximum(p1.min(0), p2.min(0))
+                    hi = np.minimum(p1.max(0), p2.max(0))
+                    if np.any(hi - lo <= min_area):
+                        continue
+                    seen = False
+                    for u in range(samples):
+                        for v in range(samples):
+                            f = (np.array([u, v]) + 0.5) / samples
+                            sp = lo + (hi - lo) * f
+                            if not (_inside_2d(p1, sp) and _inside_2d(p2, sp)):
+                                continue
+                            for sgn in (probe, -probe):
+                                wp = (qa[0] + (sp[0] - p1[0][0]) * 0
+                                      + np.zeros(3))
+                                # rebuild the world point from the 2D sample
+                                aa = np.array([1.0, 0, 0]) if abs(na[0]) < 0.9 else np.array([0, 1.0, 0])
+                                uu = np.cross(na, aa); uu /= np.linalg.norm(uu)
+                                vv = np.cross(na, uu)
+                                origin = qa[0] - np.array([qa[0] @ uu, qa[0] @ vv, 0])[0]*uu - np.array([qa[0] @ uu, qa[0] @ vv, 0])[1]*vv
+                                wp = origin + sp[0] * uu + sp[1] * vv + na * sgn
+                                if not any(_in_box(boxes[k], wp)
+                                           for k in range(len(boxes))
+                                           if k != i and k != j):
+                                    seen = True
+                    if seen:
+                        out.append((a["path"], b["path"], ta, tb, tuple(na), ca))
     return out

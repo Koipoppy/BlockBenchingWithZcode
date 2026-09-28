@@ -362,6 +362,83 @@ def render(doc, textures, size=720, eye=(-40.0, 32.0, -40.0), target=(0.0, 12.0,
     return img
 
 
+def bake_clip(doc, clip: str, time: float) -> None:
+    """Pose the document at `clip`/`time` before rendering.
+
+    Animation channels are written onto the group transforms the renderer
+    already reads (the inline outliner node when it carries one, the top-level
+    `groups` table otherwise), so a clip can be looked at without Blockbench.
+    Keyframe values are Molang source; only the plain-number subset the build
+    scripts emit is evaluated, and interpolation is read as linear -- the
+    authors' clips use catmullrom, so a pose between keys is approximate, which
+    is the honest trade for being able to see the joints move at all. Before
+    this, no tool in the repo rendered an animation, so a clip could only be
+    checked by its numbers.
+    """
+    anim = next((a for a in doc.get("animations") or [] if a.get("name") == clip), None)
+    if anim is None:
+        names = [a.get("name") for a in doc.get("animations") or []]
+        raise SystemExit(f"no clip '{clip}' in this model; have {names}")
+
+    def value(points):
+        src = (points or [{}])[0]
+        out = []
+        for axis in "xyz":
+            try:
+                out.append(float(str(src.get(axis, "0")).strip()))
+            except ValueError:
+                out.append(0.0)            # a Molang expression: not evaluated
+        return out
+
+    tracks = {}
+    for uuid, animator in (anim.get("animators") or {}).items():
+        channels = {}
+        for key in animator.get("keyframes") or []:
+            channels.setdefault(key.get("channel"), []).append(
+                (float(key.get("time", 0.0)), value(key.get("data_points"))))
+        tracks[uuid] = channels                 # animators are keyed by group uuid
+
+    def sample(keys):
+        keys = sorted(keys)
+        if time <= keys[0][0]:
+            return keys[0][1]
+        if time >= keys[-1][0]:
+            return keys[-1][1]
+        for (t0, v0), (t1, v1) in zip(keys, keys[1:]):
+            if t0 <= time <= t1:
+                f = 0.0 if t1 == t0 else (time - t0) / (t1 - t0)
+                return [a + (b - a) * f for a, b in zip(v0, v1)]
+        return keys[-1][1]
+
+    posed = {"n": 0}
+    props = (("rotation", "rotation"), ("position", "origin"), ("scale", "scale"))
+
+    def pose(node):
+        if not isinstance(node, dict):
+            return
+        chan = tracks.get(node.get("uuid"))
+        if chan:
+            for channel, prop in props:
+                if channel in chan:
+                    node[prop] = [round(v, 4) for v in sample(chan[channel])]
+                    posed["n"] += 1
+        for child in node.get("children") or []:
+            pose(child)
+
+    for node in doc.get("outliner") or []:
+        pose(node)
+    table = {g.get("uuid"): g for g in doc.get("groups") or []}
+    for uuid, chan in tracks.items():                 # the 5.0 layout
+        grp = table.get(uuid)
+        if grp is None:
+            continue
+        for channel, prop in props:
+            if channel in chan and prop not in grp:
+                grp[prop] = [round(v, 4) for v in sample(chan[channel])]
+                posed["n"] += 1
+    print(f"[clip] {clip} at {time}s -> {posed['n']} channel(s) posed")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("model")
@@ -377,6 +454,10 @@ def main() -> int:
                     help="half-size of the contact-shadow footprint on the ground")
     ap.add_argument("--unlit", action="store_true",
                     help="flat lighting: compare texture colours, not shading")
+    ap.add_argument("--clip", default=None,
+                    help="animation clip name to pose the model with")
+    ap.add_argument("--time", type=float, default=0.0,
+                    help="seconds into --clip")
     ap.add_argument("--bg", default=None,
                     help="flat background as R,G,B (e.g. 255,0,255) instead of the "
                          "gradient, so a mask can be keyed by colour; also drops the shadow")
@@ -385,6 +466,8 @@ def main() -> int:
     with open(args.model, encoding="utf-8") as fh:
         doc = json.load(fh)
     textures = decode_textures(doc)
+    if args.clip:
+        bake_clip(doc, args.clip, args.time)
 
     bg = tuple(int(v) for v in args.bg.split(",")) if args.bg else None
     az, el = math.radians(args.azimuth), math.radians(args.elevation)

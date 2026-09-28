@@ -6,13 +6,16 @@
 这里不再逐个登记模型（省得每加一个都要回来改一遍），要看清单直接看目录。
 第三方素材（别人做的模型包，只做参考、不随分支发布）统一放在 `人工建模参考/`，分类同上一行。
 
+**建模偏好看 [PREFERENCES.md](PREFERENCES.md)**（作者的口味与验收标准：禁止砖砌、禁止叠、禁止共面闪烁、
+贴图不许重复要有连续感、橙色禁用、腿约占 1/3 身高……每条都附判定手段）。
+
 共享工具：
 
 | 文件 | 说明 |
 |---|---|
-| `tools/preview_bbmodel.py` | 自建离线渲染器（零依赖、可脚本化），`--ground` 可调接触阴影半径；任何 `.bbmodel` 都能渲 |
-| `tools/bbmodel_kit.py` | 格式变换代数（`rot_ZYX`/`euler_ZYX`/`walk_groups`）+ 三项结构自检（共面 z-fighting、姿态后接触、贴图拉伸）；`golden_loong` 与 `us_soldier` 的生成脚本会 import 它 |
-| `tools/bbmodel_build.py` | 武器脚本的共享脚手架：图集打包 + 画笔库 + 方块词汇 + 写出器（双层 outliner/groups 表）+ 动画键 + 预览渲染；`兵器/` 里的三个武器脚本都 import 它 |
+| `tools/preview_bbmodel.py` | 自建离线渲染器（零依赖、可脚本化），`--ground` 可调接触阴影半径；任何 `.bbmodel` 都能渲；`--clip/--time` 把动画某一时刻的姿态烘进渲染（验证关节链的唯一手段） |
+| `tools/bbmodel_kit.py` | 格式变换代数（`rot_ZYX`/`euler_ZYX`/`walk_groups`）+ 结构自检（共面 z-fighting、姿态后接触、贴图拉伸；`coplanar_visible` 是有遮挡判定的那版，`coplanar_conflicts` 只比较总旋转一致的方块对，`zfight_world()` 把面变换到世界坐标再比 —— 圈/管/拱这类"每块 yaw 都不同"的搭接只能靠它抓）；`golden_loong`、`us_soldier` 与 `hell_juggernaut` 的生成脚本会 import 它 |
+| `tools/bbmodel_build.py` | 共享脚手架：图集打包 + 画笔库 + 写出器（双层 outliner/groups 表）+ 动画键 + 预览渲染，以及整套**链式词汇**：`cube()`（元素旋转 `rot`/`origin`）、`chain()`/`put()`/`local()`（四肢、藤蔓、尾巴的铰链）、`slab()`/`ring()`/`dome()`/`local_tube()`（把曲面铺成多边形的板：桶板、拱顶、管件）、`gear()`/`local_gear()`（**一圈板、径向长度交替**的齿轮：长的是齿、短的是齿间）、`spike()`、`stagger()`/`axle_offset()`（相邻板错开一档，破共面闪烁）、`lift()`（整棵子树上移），以及**模型空间的贴图**：`field3()`/`rect_grid()`/`face_key()` 让画笔按位置作画（去重复、接得住缝），外加镜像与自检（`mirror_tree`/`side_tree`/`add_mirrors`/`check_grid`/`check_symmetric`/`bounds`）；`兵器/` 三个武器脚本与 `生物/hell_juggernaut`、`生物/mutant_iron_golem` 都 import 它 |
 | `<分类>/<模型名>/build_<模型名>.py` | 每个模型自己的一键生成脚本（贴图 + 几何 + 写出 `.bbmodel`），就放在该模型文件夹里；脚本自己向上找 `tools/`，不依赖所在深度 |
 | `<分类>/<模型名>/export_bedrock.py` | 手写 Bedrock 几何导出（`compileCube`/`compileGroup` 规则实测自 Blockbench 源码），在 `生物/muscle_creeper/` 里 |
 | 工作区 `.mcp/`（本目录之外） | **无头 MCP**：第三方校验 / 渲染 / 导出 / 编辑 `.bbmodel`，不需要 Blockbench 运行；`call_tool.py` 的 `Client` 可 import，用来让生成脚本**通过 MCP 授权**整个工程（金龙的做法） |

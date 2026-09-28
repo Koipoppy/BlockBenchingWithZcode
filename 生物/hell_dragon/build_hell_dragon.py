@@ -9,7 +9,7 @@ v3 重做要点（用户验收意见）：
 
 产出 hell_dragon/（仓库根下的模型文件夹）。重跑即可复现。
 validate 用 interpenetration_depth=1.35：pitched 链节交界的楔形重叠
-（≈(w/2)·sinΔθ ≤ 1.1）是有意连接，已在 README 声明。
+（≈(w/2)·sinΔθ ≤ 1.1）是有意连接，ISSUE.md 第 5 节记了这条。
 """
 from __future__ import annotations
 

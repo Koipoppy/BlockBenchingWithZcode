@@ -773,7 +773,7 @@ def main():
     doc["elements"] = base_elements + new_elements
     doc["name"] = "白衬衫半身裙女生"
 
-    # ---- 8. 组的变换写两份（仓库 README 里记过这个坑）----------------------
+    # ---- 8. 组的变换写两份（ISSUE.md 第 2 节记过这个坑）--------------------
     # 基底的 4.10 布局只把 origin/rotation 内联在大纲节点上。只认 5.0 的读取器
     # （bb-render / three-blockbench）拿不到组旋转 —— 手臂不张、16 片裙片全部
     # 落在 rest 位置、裙子直接看不见（实测）。所以按 Blockbench 存 5.0 的做法

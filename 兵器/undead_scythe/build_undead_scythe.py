@@ -1,44 +1,48 @@
 """Build 亡灵战镰 (undead_scythe) as a Blockbench project.
 
-    python undead_scythe/build_undead_scythe.py [--no-preview]
+    python 兵器/undead_scythe/build_undead_scythe.py [--no-preview]
 
-Writes undead_scythe/undead_scythe.bbmodel (two textures embedded as data
-URIs: the body map and an emissive glow map), undead_scythe.png +
+Writes <this folder>/undead_scythe.bbmodel (two textures embedded as data URIs:
+the body map and an emissive glow map), undead_scythe.png +
 undead_scythe_glow.png (the same textures standalone) and the preview renders.
 
-A two-handed undead polearm, designed against the weapons in 参考/兵器 (the
-server's weapon set: 死灵权杖 / 封恶 / 肉刀 / 巨斧 / 述圣 / 刀子 ...) -- same
+A two-handed undead polearm, designed against the weapons in 人工建模参考/兵器
+(the server's weapon set: 死灵权杖 / 封恶 / 肉刀 / 巨斧 / 述圣 / 刀子 ...) -- same
 hardware, different archetype: the set has staffs, greatswords, axes and bows
 but no scythe, and no weapon made of bone. So:
 
-  * a crescent blade of ten overlapping bone plates, tapering 14 -> 3 units,
+  * a crescent blade of ten overlapping bone plates, tapering 12 -> 2 units,
     chipped along the cutting edge and stained at the root;
-  * a horned beast skull as the crown -- the blade is socketed into the iron
+  * a ram-horned skull as the crown -- the blade is socketed into the iron
     collar under its jaw, so the weapon is literally looking at you;
   * a soul flame caged in iron, hanging off the collar on a hook -- the only
     light the weapon carries, and the reason for the second (emissive) map;
   * a blackened oak shaft, leather-wrapped at the grip, coiled in chain just
-    under the head, with a knucklebone charm on the coil and a shackle + link
-    + bone at the butt;
+    under the head, with a knucklebone charm on the coil and a shackle + bone
+    at the butt;
   * a torn shroud tied to the collar, and a beak on the blade's opposite side
     so the head reads left-right instead of only left.
 
 The shape is computed, not eyeballed. The blade is a chain of nested groups
 pivoting on the spine line: every plate is authored straight along -X and
-carries +11.5 deg, so the accumulated rotation lays the plates along a circular
+carries +10 deg, so the accumulated rotation lays the plates along a circular
 arc (and swings each plate's cutting edge back *over* its predecessor, which is
 what makes the plates overlap instead of opening wedge gaps -- checked exactly
-by check_blade_chain()). Group rotation is a legitimate 4.5 feature, see the
-notes in us_soldier/build_us_soldier.py: transform = T(origin) . Rz*Ry*Rx .
-T(-origin) composed down the tree, children authored in absolute model space,
-Format.euler_order = 'ZYX'.
+by check_blade_chain()). Each plate is also a little thicker than the one after
+it: the bend is a rotation about Z, which never moves a plate in z, so equal
+thicknesses would put every plate's face in one plane and the whole blade would
+z-fight (it showed up as a stipple hatch across the blade). Group rotation is a
+legitimate 4.5 feature, see the notes in 人物/us_soldier/build_us_soldier.py:
+transform = T(origin) . Rz*Ry*Rx . T(-origin) composed down the tree, children
+authored in absolute model space, Format.euler_order = 'ZYX'.
 
-Conventions, as everywhere else in this repo: model_format 'free', per-face uv
-rects (upright and unmirrored seen from outside, v from the top), every cube
-box_uv=false, front = -Z and 1 uv unit = 1 model unit. The map is painted at
-S = 2 pixels per unit (project resolution 128, texture 256 -- the density the
-参考/兵器 weapons are painted at), so the face uv rects are the pixel rects
-divided by S.
+Scaffolding -- atlas, painting library, cube vocabulary, writer, animation keys,
+preview pass -- lives in tools/bbmodel_build.py; this file keeps what is
+specific to this weapon: palette, painters, geometry and the self checks.
+Format conventions are as everywhere else in this repo: model_format 'free',
+per-face uv rects (upright and unmirrored seen from outside, v from the top),
+every cube box_uv=false, front = -Z, 1 uv unit = 1 model unit, map painted at
+S = 2 px per unit (project resolution 128, texture 256).
 
 Validation (headless MCP): 0 errors. The interpenetration gate reports ~108
 overlaps and every one of them is the construction rather than a mistake --
@@ -60,15 +64,9 @@ would pivot on the model origin and fling the cube away.
 from __future__ import annotations
 
 import argparse
-import base64
-import io
-import json
 import math
 import os
-import random
-import subprocess
 import sys
-import uuid
 
 import numpy as np
 from PIL import Image
@@ -85,17 +83,17 @@ while not os.path.isfile(os.path.join(REPO, "tools", "bbmodel_kit.py")):
     REPO = parent
 sys.path.insert(0, os.path.join(REPO, "tools"))
 from bbmodel_kit import (FACES, V, walk_groups,  # noqa: E402
-                         coplanar_conflicts, posed_contacts, face_size,
-                         stretch_report)
+                         coplanar_conflicts, posed_contacts, stretch_report)
+from bbmodel_build import (FM, S, TEX_BODY, TEX_GLOW, at, blobs, build_atlases,  # noqa: E402
+                           check_painted, cube, edge_lit, group, hoop, kf,
+                           knucklebone, link, make_animation, ramp, rect_key,
+                           render_previews, rng_for, streaks, tint, write_model)
 
 OUT_DIR = HERE
 MODEL_NAME = "undead_scythe"
-PLACEHOLDER = (255, 0, 255, 255)          # magenta canary: unpainted uv shows up
-GLOW_BG = (0, 0, 0, 255)                  # the emissive map wants black
-S = 2                                     # texture pixels per model unit / uv unit
-
-TEX_BODY, TEX_GLOW = 0, 1
 GLOW_MATERIALS = {"flame", "ember", "eye", "rune"}
+
+
 
 # --- palette ---------------------------------------------------------------
 WOOD, WOOD_HI, WOOD_DK = (94, 71, 51), (126, 98, 68), (56, 41, 30)
@@ -116,124 +114,6 @@ BLADE_MID, BLADE_DK, BLADE_DEEP = (150, 138, 112), (116, 104, 84), (86, 76, 60)
 SOUL_HI, SOUL, SOUL_MID = (168, 255, 186), (92, 230, 124), (46, 178, 92)
 SOUL_DK, SOUL_DEEP = (24, 118, 64), (12, 54, 36)
 HOLLOW = (16, 20, 18)
-
-
-# --- painting helpers ------------------------------------------------------
-def at(cv, r):
-    x, y, w, h = r
-    return cv[y:y + h, x:x + w]
-
-
-def rect_key(key):
-    """Painters get the (material, w, h) tuple: some of them read the size."""
-    return key[1], key[2]
-
-
-class R:
-    """A seeded rng with both the scalar call sites and the array masks the
-    painters want, so every rect paints identically on every run."""
-
-    def __init__(self, key: str):
-        self.g = np.random.default_rng(abs(hash(key)) % (2 ** 31))
-
-    def random(self, shape=None):
-        return float(self.g.random()) if shape is None else self.g.random(shape)
-
-    def randint(self, a, b):
-        return int(self.g.integers(a, b + 1))
-
-    def randrange(self, n):
-        return int(self.g.integers(0, n))
-
-
-def rng_for(key) -> R:
-    return R(":".join(str(k) for k in key) if isinstance(key, tuple) else str(key))
-
-
-def ramp(a, stops):
-    """Fill a vertical gradient. stops = [(t, rgb), ...] with t in 0..1."""
-    h = a.shape[0]
-    t = np.linspace(0.0, 1.0, h)
-    stops = sorted(stops)
-    out = np.zeros((h, 3), float)
-    for i in range(len(stops) - 1):
-        t0, c0 = stops[i]
-        t1, c1 = stops[i + 1]
-        m = (t >= t0) & (t <= t1)
-        if not m.any():
-            continue
-        u = ((t[m] - t0) / max(1e-6, t1 - t0))[:, None]
-        out[m] = (1 - u) * np.array(c0, float) + u * np.array(c1, float)
-    out[t <= stops[0][0]] = stops[0][1]
-    out[t >= stops[-1][0]] = stops[-1][1]
-    a[:, :, :3] = np.clip(out, 0, 255).astype(np.uint8)[:, None, :]
-    a[:, :, 3] = 255
-
-
-def unit_mask(shape, rng, prob, where=None):
-    """A per-UNIT mask (S x S blocks): noise has to read as painted pixel
-    clusters, not as per-texel dither. At 2 px/unit single-pixel speckle turns
-    a blade into static."""
-    h, w = shape
-    m = rng.random((max(1, h // S), max(1, w // S))) < prob
-    m = np.repeat(np.repeat(m, S, axis=0), S, axis=1)[:h, :w]
-    if where is not None:
-        m &= where
-    return m
-
-
-def tint(a, rng, color, prob, where=None):
-    """Scatter unit cells of `color` over the rect."""
-    a[:, :, :3][unit_mask(a.shape[:2], rng, prob, where)] = np.array(color, np.uint8)
-
-
-def blobs(a, rng, color, n, hmin=2, hmax=3, where=None):
-    """Blotches, measured in units."""
-    h, w = a.shape[:2]
-    for _ in range(n):
-        bw = rng.randint(1, max(1, w // S // 3)) * S
-        bh = rng.randint(hmin, hmax) * S
-        x, y = rng.randrange(max(1, w // S)) * S, rng.randrange(max(1, h // S)) * S
-        x1, y1 = min(w, x + bw), min(h, y + bh)
-        if x1 <= x or y1 <= y:
-            continue
-        sub = np.zeros((h, w), bool)
-        sub[y:y1, x:x1] = True
-        if where is not None:
-            sub &= where
-        a[:, :, :3][sub] = np.array(color, np.uint8)
-
-
-def streaks(a, rng, color, n, vertical=True, lo=2, hi=None, prob=1.0, wide=1):
-    """Hairline cracks / grain, measured in units: `wide` units thick and
-    lo..hi units long."""
-    h, w = a.shape[:2]
-    uh, uw = max(1, h // S), max(1, w // S)
-    hi = hi or (uh if vertical else uw)
-    for _ in range(n):
-        if rng.random() > prob:
-            continue
-        ln = rng.randint(lo, max(lo, hi)) * S
-        if vertical:
-            x, y = rng.randrange(uw) * S, rng.randrange(uh) * S
-            a[y:min(h, y + ln), x:min(w, x + S * wide), :3] = np.array(color, np.uint8)
-        else:
-            x, y = rng.randrange(uw) * S, rng.randrange(uh) * S
-            a[y:min(h, y + S * wide), x:min(w, x + ln), :3] = np.array(color, np.uint8)
-
-
-def edge_lit(a, top=None, bottom=None, left=None, right=None):
-    """Light the outermost unit (S pixels) of the rect -- the edges are what a
-    face reads as, so they get a lit or shadowed border."""
-    if top is not None:
-        a[0:S, :, :3] = np.array(top, np.uint8)
-    if bottom is not None:
-        a[-S:, :, :3] = np.array(bottom, np.uint8)
-    if left is not None:
-        a[:, 0:S, :3] = np.array(left, np.uint8)
-    if right is not None:
-        a[:, -S:, :3] = np.array(right, np.uint8)
-
 
 # --- painters (one per material) -------------------------------------------
 def paint_wood(cv, r, key):
@@ -524,135 +404,6 @@ PAINTERS = {
     "flame": paint_flame, "ember": paint_ember, "eye": paint_eye, "rune": paint_rune,
 }
 
-
-def tex_of(material: str) -> int:
-    return TEX_GLOW if material in GLOW_MATERIALS else TEX_BODY
-
-
-# --- atlas -----------------------------------------------------------------
-class Atlas:
-    """Shelf packer keyed by (material, w, h) in MODEL units; each rect is
-    allocated S pixels per unit and painted on allocate, so the project
-    resolution stays 128 while the painted map is 256 -- 2 px per unit, the
-    density the 参考/兵器 weapons are painted at."""
-
-    def __init__(self, size: int, tex_index: int):
-        self.size = size                    # pixels
-        self.tex = tex_index
-        self.bg = PLACEHOLDER if tex_index == TEX_BODY else GLOW_BG
-        self.cv = np.zeros((size, size, 4), np.uint8)
-        self.cv[:] = self.bg
-        self.rects: dict[tuple, tuple[int, int, int, int]] = {}
-        self._x = self._y = self._row_h = 0
-
-    def alloc(self, key, w, h) -> tuple[int, int, int, int]:
-        pw, ph = w * S, h * S
-        if self._x + pw > self.size:
-            self._x = 0
-            self._y += self._row_h + 1
-            self._row_h = 0
-        if self._y + ph > self.size:
-            raise RuntimeError(f"atlas full placing {key} ({pw}x{ph}px)")
-        r = (self._x, self._y, pw, ph)
-        self.rects[key] = r
-        self._x += pw + 1
-        self._row_h = max(self._row_h, ph)
-        PAINTERS[key[0]](self.cv, r, key)
-        return r
-
-    def extend_edges(self) -> None:
-        cv, ph = self.cv, np.array(self.bg, np.uint8)
-        for (x, y, w, h) in self.rects.values():
-            sub = cv[y:y + h, x:x + w]
-            if x > 0:
-                col = cv[y:y + h, x - 1]
-                free = np.all(col == ph, axis=-1)
-                col[free] = sub[:, 0][free]
-            if x + w < self.size:
-                col = cv[y:y + h, x + w]
-                free = np.all(col == ph, axis=-1)
-                col[free] = sub[:, -1][free]
-            if y > 0:
-                row = cv[y - 1, x:x + w]
-                free = np.all(row == ph, axis=-1)
-                row[free] = sub[0, :][free]
-            if y + h < self.size:
-                row = cv[y + h, x:x + w]
-                free = np.all(row == ph, axis=-1)
-                row[free] = sub[-1, :][free]
-
-    def image(self) -> Image.Image:
-        return Image.fromarray(self.cv, "RGBA")
-
-
-# --- geometry vocabulary ---------------------------------------------------
-def FM(all=None, sides=None, ns=None, ew=None, tb=None, **faces):
-    m = {}
-    if all:
-        m.update({f: all for f in FACES})
-    if sides:
-        m.update({f: sides for f in ("north", "south", "east", "west")})
-    if ns:
-        m.update({"north": ns, "south": ns})
-    if ew:
-        m.update({"east": ew, "west": ew})
-    if tb:
-        m.update({"up": tb, "down": tb})
-    m.update(faces)
-    return m
-
-
-def cube(name, frm, to, facemap):
-    return {"name": name, "from": frm, "to": to, "faces": facemap}
-
-
-def group(name, cubes=(), children=(), origin=(0, 0, 0), rotation=None):
-    return {"name": name, "origin": origin, "rotation": rotation,
-            "cubes": list(cubes), "children": list(children)}
-
-
-def hoop(name, y0, y1, outer, bar, facemap, axis="y", ry=0.0):
-    """Four bars forming a square hoop around the vertical axis (or, with
-    axis='x', a hoop standing in the YZ plane around the blade axis)."""
-    o, i = outer, outer - bar
-    if axis == "y":
-        return [
-            cube(f"{name}_n", (-o, y0, -o), (o, y1, -i), facemap),
-            cube(f"{name}_s", (-o, y0, i), (o, y1, o), facemap),
-            cube(f"{name}_w", (-o, y0, -i), (-i, y1, i), facemap),
-            cube(f"{name}_e", (i, y0, -i), (o, y1, i), facemap),
-        ]
-    return []
-
-
-def link(name, x, y, z, w, h, t, facemap, plane="xy"):
-    """A chain link: a rectangular ring of four bars, in the xy or zy plane."""
-    if plane == "xy":
-        return [
-            cube(f"{name}_t", (x, y + h - t, z), (x + w, y + h, z + t), facemap),
-            cube(f"{name}_b", (x, y, z), (x + w, y + t, z + t), facemap),
-            cube(f"{name}_o", (x, y + t, z), (x + t, y + h - t, z + t), facemap),
-            cube(f"{name}_i", (x + w - t, y + t, z), (x + w, y + h - t, z + t), facemap),
-        ]
-    return [
-        cube(f"{name}_t", (x, y + h - t, z), (x + t, y + h, z + w), facemap),
-        cube(f"{name}_b", (x, y, z), (x + t, y + t, z + w), facemap),
-        cube(f"{name}_o", (x, y + t, z), (x + t, y + h - t, z + t), facemap),
-        cube(f"{name}_i", (x, y + t, z + w - t), (x + t, y + h - t, z + w), facemap),
-    ]
-
-
-def knucklebone(name, x, y, z, h, facemap):
-    """A bone charm: a shaft with a knob at each end. Spans y .. y+h, knobs
-    included, so it can be hung exactly off the face above it."""
-    return [
-        cube(f"{name}_shaft", (x + 0.4, y + 0.5, z + 0.4), (x + 1.6, y + h - 0.5, z + 0.9),
-             facemap),
-        cube(f"{name}_k0", (x, y, z), (x + 0.5, y + h, z + 1.3), facemap),
-        cube(f"{name}_k1", (x + 1.5, y, z), (x + 2.0, y + h, z + 1.3), facemap),
-    ]
-
-
 # --- the model -------------------------------------------------------------
 # Layout, all in absolute model units, front = -Z, blade sweeps -X.
 SHAFT_HW = 1.6                      # shaft half width (low)
@@ -930,8 +681,6 @@ def build_tree():
                                          for i, c in enumerate(CHORDS)]}
     return root, info
 
-
-# --- self checks -----------------------------------------------------------
 def check_blade_chain(tree, info):
     """Every plate must still be tucked into the one before it once the whole
     chain is bent -- that is the difference between a blade and a row of
@@ -996,187 +745,47 @@ def bounds(tree):
                     lo, hi = np.minimum(lo, p), np.maximum(hi, p)
     return lo, hi
 
-
-# --- writer ----------------------------------------------------------------
-def collect_rects(tree, tex_index):
-    seen = {}
-    for _path, c, _R, _t in walk_groups(tree):
-        for mat in c["faces"].values():
-            if tex_of(mat) != tex_index:
-                continue
-            w, h = face_size("north", c["from"], c["to"])
-            for face in FACES:
-                w, h = face_size(face, c["from"], c["to"])
-                seen[(mat, w, h)] = True
-    return sorted(seen, key=lambda k: (-k[2], -k[1]))
-
-
-def build_atlases(tree) -> dict:
-    """One atlas size for the whole model (a project has a single uv
-    resolution), so the body map decides the size and the glow map follows."""
-    body = collect_rects(tree, TEX_BODY)
-    glow = collect_rects(tree, TEX_GLOW)
-    for size in (256, 320, 384, 448, 512):
-        atlases = {}
-        try:
-            for idx, keys in ((TEX_BODY, body), (TEX_GLOW, glow)):
-                atlas = Atlas(size, idx)
-                for mat, w, h in keys:
-                    atlas.alloc((mat, w, h), w, h)
-                atlases[idx] = atlas
-        except RuntimeError:
-            continue
-        for atlas in atlases.values():
-            atlas.extend_edges()
-        return atlases
-    raise SystemExit("no atlas size fits the model")
-
-
-def check_painted(atlas: Atlas) -> list[str]:
-    ph = np.array(atlas.bg, np.uint8)
-    return [str(key) for key, (x, y, w, h) in atlas.rects.items()
-            if np.any(np.all(atlas.cv[y:y + h, x:x + w] == ph, axis=-1))]
-
-
-def kf(channel, time, value, interpolation="linear"):
-    """One Blockbench keyframe: numbers ride as Molang strings in data_points."""
-    if channel == "scale":
-        pt = {"x": f"{value[0]:g}", "y": f"{value[1]:g}", "z": f"{value[2]:g}"}
-    else:
-        pt = {"x": f"{value[0]:g}", "y": f"{value[1]:g}", "z": f"{value[2]:g}"}
-    return {"channel": channel, "data_points": [pt], "uuid": str(uuid.uuid4()),
-            "time": float(time), "color": -1, "interpolation": interpolation}
-
-
+# --- animation -------------------------------------------------------------
 def build_animations(by_name: dict) -> list:
     """A two-second idle, looping: the weapon drifts, the soul flame pulses,
-    the jaw works, the shroud flutters and the embers orbit. Authored after the
-    walk so the animators can be keyed by the group uuids Blockbench wants.
-
-    Nothing keyframes a *cube*: the writer gives every cube origin [0,0,0], so a
-    cube-level scale or rotation would pivot on the model origin and fling the
-    cube across the scene. Groups carry their own pivots, so groups only."""
-    def anim(name, keys):
-        g = by_name[name]
-        return {"name": name, "type": "bone",
-                "keyframes": sum(([kf(c, t, v, i) for c, t, v, i in ks] for ks in keys), [])}
-
-    root = anim("undead_scythe", [[
-        ("position", 0.0, (0, 0, 0), "catmullrom"),
-        ("position", 1.0, (0, 0.9, 0), "catmullrom"),
-        ("position", 2.0, (0, 0, 0), "catmullrom")]])
-    flame = anim("soul_flame", [[
-        ("scale", 0.0, (1, 1, 1), "catmullrom"),
-        ("scale", 0.5, (1.1, 1.18, 1.1), "catmullrom"),
-        ("scale", 1.0, (0.96, 0.94, 0.96), "catmullrom"),
-        ("scale", 1.5, (1.06, 1.12, 1.06), "catmullrom"),
-        ("scale", 2.0, (1, 1, 1), "catmullrom"),
-    ], [
-        ("position", 0.0, (0, 0, 0), "catmullrom"),
-        ("position", 0.8, (0, 0.5, 0), "catmullrom"),
-        ("position", 1.6, (0, -0.3, 0), "catmullrom"),
-        ("position", 2.0, (0, 0, 0), "catmullrom")]])
-    jaw = anim("jaw", [[
-        ("rotation", 0.0, (0, 0, 0), "catmullrom"),
-        ("rotation", 1.0, (-5.5, 0, 0), "catmullrom"),
-        ("rotation", 2.0, (0, 0, 0), "catmullrom")]])
-    shroud = anim("shroud", [[
-        ("rotation", 0.0, (0, 0, 0), "catmullrom"),
-        ("rotation", 0.5, (2.5, 0, 3.0), "catmullrom"),
-        ("rotation", 1.0, (0, 0, 0), "catmullrom"),
-        ("rotation", 1.5, (-2.0, 0, -2.5), "catmullrom"),
-        ("rotation", 2.0, (0, 0, 0), "catmullrom")]])
-    embers = anim("embers", [[
-        ("position", 0.0, (0, 0, 0), "catmullrom"),
-        ("position", 1.2, (0, 1.6, 0), "catmullrom"),
-        ("position", 2.0, (0, 0, 0), "catmullrom"),
-    ], [
-        ("rotation", 0.0, (0, 0, 0), "catmullrom"),
-        ("rotation", 2.0, (0, 60, 0), "catmullrom")]])
-    return [{
-        "uuid": str(uuid.uuid4()), "name": "animation.undead_scythe.idle",
-        "loop": "loop", "override": False, "length": 2.0, "snapping": 24,
-        "selected": False, "saved": False, "path": "",
-        "anim_time_update": "", "blend_weight": "", "start_delay": "", "loop_delay": "",
-        "animators": {by_name[a["name"]]: a for a in (root, flame, jaw, shroud, embers)},
-    }]
+    the jaw works, the shroud flutters and the embers orbit. Groups only, see
+    make_animation()."""
+    return [make_animation("animation.undead_scythe.idle", 2.0, {
+        "undead_scythe": [[
+            kf("position", 0.0, (0, 0, 0), "catmullrom"),
+            kf("position", 1.0, (0, 0.9, 0), "catmullrom"),
+            kf("position", 2.0, (0, 0, 0), "catmullrom")]],
+        "soul_flame": [[
+            kf("scale", 0.0, (1, 1, 1), "catmullrom"),
+            kf("scale", 0.5, (1.1, 1.18, 1.1), "catmullrom"),
+            kf("scale", 1.0, (0.96, 0.94, 0.96), "catmullrom"),
+            kf("scale", 1.5, (1.06, 1.12, 1.06), "catmullrom"),
+            kf("scale", 2.0, (1, 1, 1), "catmullrom"),
+        ], [
+            kf("position", 0.0, (0, 0, 0), "catmullrom"),
+            kf("position", 0.8, (0, 0.5, 0), "catmullrom"),
+            kf("position", 1.6, (0, -0.3, 0), "catmullrom"),
+            kf("position", 2.0, (0, 0, 0), "catmullrom")]],
+        "jaw": [[
+            kf("rotation", 0.0, (0, 0, 0), "catmullrom"),
+            kf("rotation", 1.0, (-5.5, 0, 0), "catmullrom"),
+            kf("rotation", 2.0, (0, 0, 0), "catmullrom")]],
+        "shroud": [[
+            kf("rotation", 0.0, (0, 0, 0), "catmullrom"),
+            kf("rotation", 0.5, (2.5, 0, 3.0), "catmullrom"),
+            kf("rotation", 1.0, (0, 0, 0), "catmullrom"),
+            kf("rotation", 1.5, (-2.0, 0, -2.5), "catmullrom"),
+            kf("rotation", 2.0, (0, 0, 0), "catmullrom")]],
+        "embers": [[
+            kf("position", 0.0, (0, 0, 0), "catmullrom"),
+            kf("position", 1.2, (0, 1.6, 0), "catmullrom"),
+            kf("position", 2.0, (0, 0, 0), "catmullrom"),
+        ], [
+            kf("rotation", 0.0, (0, 0, 0), "catmullrom"),
+            kf("rotation", 2.0, (0, 60, 0), "catmullrom")]],
+    }, by_name)]
 
 
-def write_model(path: str, tree, atlases: dict, textures: dict) -> int:
-    elements: list[dict] = []
-    groups: list[dict] = []
-    by_name: dict = {}
-
-    def emit_cube(c: dict) -> str:
-        el = {
-            "name": c["name"],
-            "from": [float(v) for v in c["from"]],
-            "to": [float(v) for v in c["to"]],
-            "origin": [0.0, 0.0, 0.0],
-            "uuid": str(uuid.uuid4()),
-            "faces": {},
-            "type": "cube",
-            "color": 0,
-            "box_uv": False,
-        }
-        for face in FACES:
-            mat = c["faces"][face]
-            w, h = face_size(face, c["from"], c["to"])
-            x, y, rw, rh = atlases[tex_of(mat)].rects[(mat, w, h)]
-            el["faces"][face] = {"uv": [x / S, y / S, (x + rw) / S, (y + rh) / S],
-                                 "texture": tex_of(mat)}
-        elements.append(el)
-        by_name[c["name"]] = el["uuid"]
-        return el["uuid"]
-
-    def walk(node: dict) -> dict:
-        """A group is written twice on purpose: inline in the outliner node (the
-        4.5 legacy-group path Blockbench 5.2.1 itself reads) and in a top-level
-        `groups` table (the 5.0 layout third-party readers parse). Blockbench
-        merges the two by uuid."""
-        children = [emit_cube(c) for c in node.get("cubes") or []]
-        children += [walk(child) for child in node.get("children") or []]
-        gu = str(uuid.uuid4())
-        out = {"name": node["name"], "origin": [float(v) for v in node["origin"]],
-               "uuid": gu, "children": children}
-        table = {"name": node["name"], "origin": [float(v) for v in node["origin"]],
-                 "uuid": gu,
-                 "children": [c if isinstance(c, str) else c["uuid"] for c in children]}
-        if node.get("rotation"):
-            out["rotation"] = [float(v) for v in node["rotation"]]
-            table["rotation"] = [float(v) for v in node["rotation"]]
-        groups.append(table)
-        by_name[node["name"]] = gu
-        return out
-
-    outliner = [walk(tree)]
-    res = atlases[TEX_BODY].size // S
-    tex_docs = []
-    for idx in (TEX_BODY, TEX_GLOW):
-        buf = io.BytesIO()
-        textures[idx].save(buf, format="PNG")
-        uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
-        entry = {"path": "", "name": f"{MODEL_NAME}{'' if idx == TEX_BODY else '_glow'}.png",
-                 "folder": "entity", "namespace": "", "id": str(idx), "particle": False,
-                 "render_mode": "default" if idx == TEX_BODY else "emissive",
-                 "visible": True, "mode": "bitmap", "saved": False,
-                 "uuid": str(uuid.uuid4()), "source": uri,
-                 "width": atlases[idx].size, "height": atlases[idx].size,
-                 "uv_width": res, "uv_height": res}
-        tex_docs.append(entry)
-    doc = {
-        "meta": {"format_version": "4.5", "model_format": "free", "box_uv": False},
-        "name": MODEL_NAME,
-        "resolution": {"width": res, "height": res},
-        "elements": elements,
-        "outliner": outliner,
-        "groups": groups,
-        "textures": tex_docs,
-        "animations": build_animations(by_name),
-    }
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=2, ensure_ascii=False)
-    return len(elements)
 
 
 PREVIEWS = [
@@ -1188,16 +797,6 @@ PREVIEWS = [
     ("_head", 232.0, 18.0, 54.0, (-3.0, 94.0, 0.0)),
     ("_blade", 244.0, 20.0, 60.0, (-18.0, 82.0, 0.0)),
 ]
-
-
-def render_previews(model_path: str) -> None:
-    for suffix, az, el, dist, target in PREVIEWS:
-        out = os.path.join(OUT_DIR, f"{MODEL_NAME}_preview{suffix}.png")
-        subprocess.run([sys.executable, os.path.join(REPO, "tools", "preview_bbmodel.py"),
-                        model_path, out, "--size", "760", "--azimuth", str(az),
-                        "--elevation", str(el), "--distance", str(dist),
-                        "--target", *[str(t) for t in target]], check=True)
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -1240,7 +839,7 @@ def main() -> int:
     print(f"bounds  x {lo[0]:7.2f}..{hi[0]:7.2f}  y {lo[1]:7.2f}..{hi[1]:7.2f}  "
           f"z {lo[2]:7.2f}..{hi[2]:7.2f}   (h {hi[1] - lo[1]:.1f})")
 
-    atlases = build_atlases(tree)
+    atlases = build_atlases(tree, PAINTERS, GLOW_MATERIALS)
     for idx, atlas in atlases.items():
         unpainted = check_painted(atlas)
         if unpainted:
@@ -1250,14 +849,15 @@ def main() -> int:
         images[idx].save(os.path.join(OUT_DIR, name))
 
     model_path = os.path.join(OUT_DIR, f"{MODEL_NAME}.bbmodel")
-    cubes = write_model(model_path, tree, atlases, images)
+    cubes = write_model(model_path, tree, atlases, images, MODEL_NAME, GLOW_MATERIALS,
+                        animations=build_animations)
     used = {idx: sum(w * h for _x, _y, w, h in a.rects.values()) for idx, a in atlases.items()}
     print(f"{model_path}  ({cubes} cubes, res {atlases[TEX_BODY].size // S}, "
           f"body {atlases[TEX_BODY].size}px {len(atlases[TEX_BODY].rects)} rects "
           f"{used[TEX_BODY]}px, glow {len(atlases[TEX_GLOW].rects)} rects {used[TEX_GLOW]}px)")
 
     if not args.no_preview:
-        render_previews(model_path)
+        render_previews(model_path, OUT_DIR, MODEL_NAME, PREVIEWS)
     return 0
 
 

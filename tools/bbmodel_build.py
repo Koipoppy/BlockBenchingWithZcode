@@ -53,8 +53,11 @@ def at(cv, r):
 
 
 def rect_key(key):
-    """Painters get the (material, w, h) tuple in MODEL units: some read it."""
-    return key[1], key[2]
+    """Painters get the (w, h) of the face in MODEL units: some read it.
+
+    The key is (material, face, w, h, cx2, cy2, cz2); this deliberately skips
+    the face name -- a painter that needs it reads key[1]."""
+    return key[2], key[3]
 
 
 class R:
@@ -384,7 +387,8 @@ def slab(name, centre, size, rot, mat, **faces):
     return box(name, mat, f, t, rot=rot if any(rot) else None, **faces)
 
 
-def ring(prefix, cy, a, b, n, h, thick, mat, cx=0.0, cz=0.0, **faces):
+def ring(prefix, cy, a, b, n, h, thick, mat, cx=0.0, cz=0.0, tilt=0.0,
+         alt=0, **faces):
     """The LEFT half of a ring of plates standing around the vertical axis: plate
     i sits on the ellipse (a wide, b deep) at yaw psi and faces outward, its
     local +z (the `south` face) pointing away from the body.
@@ -410,11 +414,17 @@ def ring(prefix, cy, a, b, n, h, thick, mat, cx=0.0, cz=0.0, **faces):
         for j in (i - 1, i + 1):
             if 0 <= j < len(pts):
                 chord = max(chord, math.dist((px, pz), pts[j][:2]))
-        arc = max(1, math.ceil(chord * 1.12))
+        # the width steps one unit around the ring AND one unit from ring to
+        # ring (`alt`), so two stacked rings cannot put their plates' end faces
+        # in one plane
+        arc = max(1, math.ceil(chord * 1.12) - ((i + alt) % 2))
         name = f"{prefix}{i:02d}" + ("_l" if px - cx > 1e-6 else "")
+        # `tilt` pitches the plate onto a profile's slope, the way taper_tube
+        # does for a cone: a run of rings with different radii reads as a stack
+        # of cylinders without it
         out.append(slab(name, (px, cy, pz),
                         (stagger(i, arc), stagger(i, h), thick),
-                        (0.0, yaw, 0.0), mat, **faces))
+                        (tilt, yaw, 0.0), mat, **faces))
     return out
 
 
@@ -668,11 +678,18 @@ def check_grid(tree):
     return bad
 
 
-def check_symmetric(tree):
-    """Centre parts (no _l/_r marker) must straddle x = 0."""
+def check_symmetric(tree, skip=()):
+    """Centre parts (no _l/_r marker) must straddle x = 0.
+
+    `skip` is a tuple of path fragments whose cubes are exempt: a weapon carried
+    in one hand is authored once, on one side, and is neither a centre part nor
+    a mirrored one (centaur_knight's trident).
+    """
     from bbmodel_kit import walk_groups
     bad = []
     for path, c, _R, _t in walk_groups(tree):
+        if any(frag in path for frag in skip):
+            continue
         name = path.rsplit("/", 1)[1]
         if is_side(name):
             continue
@@ -738,6 +755,83 @@ def local_tube(seg, a, b, thick, mat, name, n=6, phase=0.0, length=None, mid=Non
                         (stagger(i, arc), stagger(i, length), thick), eul,
                         mat))
     return out
+
+def taper_tube(seg, r0, r1, thick, mat, name, n=6, phase=0.0, squash=1.0,
+               dirv="-y", length=None, mid=None, half=False):
+    """A chain segment's SURFACE as a CONE: n plates around the segment's own
+    axis, each standing at the radius the cone has at the MIDDLE of the segment
+    and PITCHED onto the cone's slope, so its two ends land on r0 and r1.
+
+    `local_tube` lays a cylinder, and a chain of cylinders is exactly what the
+    user called "两个木桶搭起来" on the first centaur's legs: a limb is a cone.
+    The pitch is what carries it -- a plate held at one radius for the whole
+    segment leaves the joint fat and the ankle hollow, while tilted by the
+    cone's half-angle it meets its neighbours at the joint's radius and the limb
+    reads as one tapering column.
+
+    (r0, r1) are the radii at the joint and at the far end (`dirv` says which
+    way the far end lies), `squash` the depth ratio (b = r * squash), so n=4
+    with squash 0.35 makes a BLADE -- a long diamond with two bevels a side --
+    instead of a round spike, and squash 1.4 makes a hoof.
+
+    Keep one segment's taper under about 1.35x. The plates are rectangles, so a
+    stronger cone leaves their ends wider than the circle they stand on and
+    their corners fan out; split a heavy taper into two or three segments.
+
+    A name ending in `_l` / `_r` stamps that side on every plate (a limb's plates
+    live in a side group, and the mirror gate pairs them by name). `half`
+    instead authors only the plates on +x, marking those, so add_mirrors()
+    closes the ring -- what a cone inside a CENTRE group needs, since a cube
+    with no side marker has to straddle x = 0.
+    """
+    import math
+    from bbmodel_kit import V, euler_ZYX, rot_ZYX
+    if dirv not in ("-y", "+y"):
+        raise ValueError("taper_tube lays its plates around the y axis")
+    R, j, L = seg["R"], V(*seg["joint"]), seg["L"]
+    if length is None:
+        # plate SIZES have to be whole units (an exact uv rect at S = 2), and a
+        # chain joint lands wherever sin/cos puts it, so round the span
+        length = int(round(L)) + 1         # +1: neighbours overlap at the joint
+    # the segment's centre sits down the limb for a '-y' chain and up it for a
+    # '+y' one (chain() authors the box from the joint toward the far end)
+    mid = (L / 2.0 if dirv == "+y" else -L / 2.0) if mid is None else mid
+    mid = mid + 0.25
+    # the plate's outward face has to tilt off the radial direction by the
+    # cone's half-angle: -sin(rx) is the normal's component along the limb's
+    # own y, and the cone's surface normal carries -(dr/ds) along the far end's
+    # direction
+    tilt = math.degrees(math.atan2(r0 - r1 if dirv == "-y" else r1 - r0, L))
+    a, b = (r0 + r1) / 2.0, (r0 + r1) / 2.0 * squash
+    stem, side = (name[:-2], name[-2:]) if name[-2:] in ("_l", "_r") else (name, "")
+    pts = []
+    for i in range(n):
+        psi = math.radians(phase + 360.0 * i / n)
+        pts.append((a * math.sin(psi), -b * math.cos(psi),
+                    math.degrees(math.atan2(b * math.sin(psi), -a * math.cos(psi)))))
+    out = []
+    for i, (px, pz, yaw) in enumerate(pts):
+        if half and px < -1e-6:
+            continue
+        chord = max(math.dist((px, pz), pts[(i + k) % n][:2]) for k in (-1, 1))
+        arc = max(1, math.ceil(chord * 1.12))
+        c = j + R @ V(px, mid, pz)
+        # a four-plate diamond puts two of its plates at yaw = +-90, which is
+        # exactly the gimbal lock of a ZYX euler; a degree and a bit off it is
+        # under a fifth of a unit on a plate this size and invisible
+        for nudge in (0.0, 1.2, -1.2):
+            try:
+                eul = euler_ZYX(R @ rot_ZYX(tilt, yaw + nudge, 0.0))
+                break
+            except ValueError:
+                continue
+        else:
+            raise ValueError(f"{name}: no euler off the lock for yaw {yaw:.2f}")
+        tag = (f"{stem}{i:02d}" + ("_l" if px > 1e-6 else "")) if half             else f"{stem}{i}{side}"
+        out.append(slab(tag, (c[0], c[1], c[2]),
+                        (stagger(i, arc), stagger(i, length), thick), eul, mat))
+    return out
+
 
 def gear(name, centre, r, n, thick, mat, axis="z", tooth=3, inner=2, hub=0,
          phase=0.0):
